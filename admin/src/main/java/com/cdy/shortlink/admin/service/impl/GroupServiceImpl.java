@@ -6,17 +6,22 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cdy.shortlink.admin.common.biz.user.UserContext;
+import com.cdy.shortlink.admin.common.convention.result.Result;
 import com.cdy.shortlink.admin.dao.entity.GroupDO;
 import com.cdy.shortlink.admin.dao.mapper.GroupMapper;
 import com.cdy.shortlink.admin.dto.req.ShortLinkGroupSortReqDTO;
 import com.cdy.shortlink.admin.dto.req.ShortLinkGroupUpdateReqDTO;
 import com.cdy.shortlink.admin.dto.resp.ShortLinkGroupRespDTO;
+import com.cdy.shortlink.admin.remote.ShortLinkRemoteService;
+import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import com.cdy.shortlink.admin.service.GroupService;
 import com.cdy.shortlink.admin.toolkit.RandomGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * 短连接分组服务实现类
@@ -26,20 +31,37 @@ import java.util.List;
 public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implements GroupService {
 
     /**
+     * 后续重构为SpringCloud feign调用
+     */
+    ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {
+    };
+
+
+    /**
      * 新增短连接分组
      * @param groupName 分组名称
      */
     @Override
     public void saveGroup(String groupName) {
+        saveGroup(UserContext.getUsername(),groupName);
+    }
+
+    /**
+     * 新增短连接分组
+     * @param username 用户名
+     * @param groupName 分组名称
+     */
+    @Override
+    public void saveGroup(String username,String groupName) {
         String gid;
         do {
             gid = RandomGenerator.generateRandom();
-        } while (!hasGid(gid));
+        } while (!hasGid(username, gid));
 
         GroupDO groupDO = GroupDO.builder()
                 .gid(gid)
                 .sortOrder(0)       // 排序字段默认值为0
-                .username(UserContext.getUsername())
+                .username(username)
                 .name(groupName)
                 .build();
         baseMapper.insert(groupDO);
@@ -47,13 +69,14 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
 
     /**
      * 校验分组ID是否存在
-     * @param gid 分组ID
+     * @param username 用户名
+     * @param gid 分组标识
      * @return 是否存在
      */
-    private boolean hasGid(String gid) {
+    private boolean hasGid(String username, String gid) {
         LambdaQueryWrapper<GroupDO> queryWrapper = Wrappers.lambdaQuery(GroupDO.class)
                 .eq(GroupDO::getGid, gid)
-                .eq(GroupDO::getUsername, UserContext.getUsername());
+                .eq(GroupDO::getUsername, Optional.ofNullable(username).orElse(UserContext.getUsername()));
         GroupDO hasGroupFlag = baseMapper.selectOne(queryWrapper);
         return hasGroupFlag == null;  // true 表示不存在
     }
@@ -69,7 +92,16 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
                 .eq(GroupDO::getUsername, UserContext.getUsername())
                 .orderByDesc(GroupDO::getSortOrder, GroupDO::getUpdateTime);
         List<GroupDO> groupDOList = baseMapper.selectList(queryWrapper);
-        return BeanUtil.copyToList(groupDOList, ShortLinkGroupRespDTO.class);
+        Result<List<ShortLinkGroupCountQueryRespDTO>> listResult =
+                shortLinkRemoteService.listGroupShortLinkCount(groupDOList.stream().map(GroupDO::getGid).toList());
+        List<ShortLinkGroupRespDTO> shortLinkGroupRespDTOList = BeanUtil.copyToList(groupDOList, ShortLinkGroupRespDTO.class);
+        shortLinkGroupRespDTOList.forEach(each -> {
+            Optional<ShortLinkGroupCountQueryRespDTO> first = listResult.getData().stream()
+                    .filter(item -> Objects.equals(item.getGid(), each.getGid()))
+                    .findFirst();
+            first.ifPresent(item -> each.setShortLinkCount(first.get().getShortLinkCount()));
+        });
+        return shortLinkGroupRespDTOList;
     }
 
     /**

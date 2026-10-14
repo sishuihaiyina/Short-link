@@ -41,15 +41,15 @@ public class UserTransmitFilter implements Filter {
         if (!IGNORE_URLS.contains(requestURI)) {
             String method = httpServletRequest.getMethod();
             if (!(Objects.equals(requestURI, "/api/short-link/admin/v1/user") && Objects.equals(method, "POST"))) {
-                String userName = httpServletRequest.getHeader("userName");
+                String username = httpServletRequest.getHeader("userName");
                 String token = httpServletRequest.getHeader("token");
-                if (!StrUtil.isAllNotBlank(userName, token)) {
+                if (!StrUtil.isAllNotBlank(username, token)) {
                     returnJson((HttpServletResponse) servletResponse, JSON.toJSONString(Results.failure(new ClientException(UserErrorCodeEnum.USER_TOKEN_FAIL))));
                     return;
                 }
                 Object userInfoJsonStr;
                 try {
-                    userInfoJsonStr = stringRedisTemplate.opsForHash().get("login_" + userName, token);
+                    userInfoJsonStr = stringRedisTemplate.opsForHash().get("login_" + username, token);
                     if (userInfoJsonStr == null) {
                         throw new ClientException(UserErrorCodeEnum.USER_TOKEN_FAIL);
                     }
@@ -58,6 +58,8 @@ public class UserTransmitFilter implements Filter {
                     returnJson((HttpServletResponse) servletResponse, JSON.toJSONString(Results.failure(new ClientException(UserErrorCodeEnum.USER_TOKEN_FAIL))));
                     return;
                 }
+                UserInfoDTO userInfoDTO = JSON.parseObject(userInfoJsonStr.toString(), UserInfoDTO.class);
+                UserContext.setUser(userInfoDTO);
             }
         }
         try {

@@ -1,4 +1,4 @@
-package com.cdy.shortlink.admin.remote.dto;
+package com.cdy.shortlink.admin.remote;
 
 import cn.hutool.http.HttpUtil;
 import com.alibaba.fastjson2.JSON;
@@ -8,9 +8,11 @@ import com.cdy.shortlink.admin.common.convention.result.Result;
 import com.cdy.shortlink.admin.remote.dto.req.ShortLinkCreateReqDTO;
 import com.cdy.shortlink.admin.remote.dto.req.ShortLinkPageReqDTO;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkCreateRespDTO;
+import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkPageRespDTO;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,5 +45,16 @@ public interface ShortLinkRemoteService {
         return JSON.parseObject(resultPageStr, new TypeReference<>() {});
     }
 
+    /**
+     * 短链接分组内数量
+     * @param requestIds 短链接请求ID列表
+     * @return 短链接分组内数量列表
+     */
+    default Result<List<ShortLinkGroupCountQueryRespDTO>> listGroupShortLinkCount(List<String> requestIds) {
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("requestIds", requestIds);
+        String resultPageStr = HttpUtil.get("http://localhost:8001/api/short-link/v1/count", requestMap);
 
+        return JSON.parseObject(resultPageStr, new TypeReference<>() {});
+    }
 }

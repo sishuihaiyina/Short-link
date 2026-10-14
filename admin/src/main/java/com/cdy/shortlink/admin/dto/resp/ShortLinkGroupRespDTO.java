@@ -19,12 +19,12 @@ public class ShortLinkGroupRespDTO {
     private String name;
 
     /**
-     * 用户名
-     */
-    private String username;
-
-    /**
      * 排序字段
      */
     private Integer sortOrder;
+
+    /**
+     * 短连接数量
+     */
+    private Integer shortLinkCount;
 }

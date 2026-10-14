@@ -16,6 +16,7 @@ import com.cdy.shortlink.admin.dto.req.UserRegisterReqDTO;
 import com.cdy.shortlink.admin.dto.req.UserUpdateReqDTO;
 import com.cdy.shortlink.admin.dto.resp.UserLoginRespDTO;
 import com.cdy.shortlink.admin.dto.resp.UserRespDTO;
+import com.cdy.shortlink.admin.service.GroupService;
 import com.cdy.shortlink.admin.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RBloomFilter;
@@ -39,6 +40,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
     private final RBloomFilter<String> userRegisterCachePenetrationBloomFilter;
     private final RedissonClient redissonClient;
     private final StringRedisTemplate stringRedisTemplate;
+    private final GroupService groupService;
 
     /**
      * 根据用户名查询用户信息
@@ -79,17 +81,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         }
         // 防止恶意请求毫秒级触发大量请求去注册一个未注册的用户名
         RLock lock = redissonClient.getLock(RedisCacheConstant.LOCK_USER_REGISTER_KEY + userRegisterReqDTO.getUsername());
-        if (!lock.tryLock()) {
-            throw new ClientException(UserErrorCodeEnum.USER_SAVE_ERROR);
-        }
         try {
-            int inserted = baseMapper.insert(BeanUtil.toBean(userRegisterReqDTO, UserDO.class));
-            if (inserted < 1) {
-                throw new ClientException(UserErrorCodeEnum.USER_SAVE_ERROR);
+            if (lock.tryLock()) {
+                try {
+                    int inserted = baseMapper.insert(BeanUtil.toBean(userRegisterReqDTO, UserDO.class));
+                    if (inserted < 1) {
+                        throw new ClientException(UserErrorCodeEnum.USER_SAVE_ERROR);
+                    }
+                } catch (DuplicateKeyException ex) {
+                    throw new ClientException(UserErrorCodeEnum.USER_EXIST);
+                }
+                userRegisterCachePenetrationBloomFilter.add(userRegisterReqDTO.getUsername());
+                // 注册成功后，创建默认分组
+                groupService.saveGroup(userRegisterReqDTO.getUsername(),"默认分组");
+                return;
             }
-            userRegisterCachePenetrationBloomFilter.add(userRegisterReqDTO.getUsername());
-        } catch (DuplicateKeyException ex) {
-            throw new ClientException(UserErrorCodeEnum.USER_EXIST);
+            throw new ClientException(UserErrorCodeEnum.USER_NAME_EXIST);
         } finally {
             lock.unlock();
         }
