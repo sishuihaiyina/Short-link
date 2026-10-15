@@ -1,0 +1,27 @@
+package com.cdy.shortlink.project.toolkit;
+
+import cn.hutool.core.date.DateUnit;
+import cn.hutool.core.date.DateUtil;
+import com.cdy.shortlink.project.common.constant.ShortLinkConstant;
+
+import java.util.Date;
+import java.util.Optional;
+
+/**
+ * 链接工具类
+ */
+public class LinkUtil {
+
+    /**
+     * 获取链接缓存有效时间
+     *
+     * @param validDate 链接有效时间
+     * @return 链接缓存有效时间
+     */
+    public static long getLinkCacheValidDate(Date validDate) {
+        return Optional.ofNullable(validDate)
+                .map(each -> DateUtil.between(new Date(), each, DateUnit.MS))
+                .orElse(ShortLinkConstant.DEFAULT_CACHE_VALID_TIME);
+
+    }
+}
