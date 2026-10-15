@@ -11,6 +11,7 @@ import com.cdy.shortlink.admin.remote.dto.req.ShortLinkUpdateReqDTO;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkCreateRespDTO;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkPageRespDTO;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.HashMap;
 import java.util.List;
@@ -65,6 +66,16 @@ public interface ShortLinkRemoteService {
      */
     default void updateShortLink(ShortLinkUpdateReqDTO shortLinkUpdateReqDTO) {
         HttpUtil.post("http://localhost:8001/api/short-link/v1/update", JSON.toJSONString(shortLinkUpdateReqDTO));
+    }
+
+    /**
+     * 根据URL获取对应网站的标题
+     * @param url 短链接URL
+     * @return 短链接标题
+     */
+    default Result<String> getTitleByUrl(@RequestParam("url") String url) {
+        String resultStr = HttpUtil.get("http://localhost:8001/api/short-link/v1/title?url=" + url);
+        return JSON.parseObject(resultStr, new TypeReference<>() {});
     }
 
 }
