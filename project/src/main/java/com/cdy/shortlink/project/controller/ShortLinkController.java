@@ -5,13 +5,17 @@ import com.cdy.shortlink.project.common.convention.result.Result;
 import com.cdy.shortlink.project.common.convention.result.Results;
 import com.cdy.shortlink.project.dto.req.ShortLinkCreateReqDTO;
 import com.cdy.shortlink.project.dto.req.ShortLinkPageReqDTO;
+import com.cdy.shortlink.project.dto.req.ShortLinkUpdateReqDTO;
 import com.cdy.shortlink.project.dto.resp.ShortLinkCreateRespDTO;
 import com.cdy.shortlink.project.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import com.cdy.shortlink.project.dto.resp.ShortLinkPageRespDTO;
 import com.cdy.shortlink.project.service.ShortLinkService;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -45,6 +49,23 @@ public class ShortLinkController {
     @GetMapping("/api/short-link/v1/count")
     public Result<List<ShortLinkGroupCountQueryRespDTO>> listGroupShortLinkCount(@RequestParam("requestIds") List<String> requestIds) {
         return Results.success(shortLinkService.listGroupShortLinkCount(requestIds));
+    }
+
+    /**
+     * 修改短链接
+     */
+    @PostMapping("/api/short-link/v1/update")
+    public Result<Void> updateShortLink(@RequestBody ShortLinkUpdateReqDTO shortLinkUpdateReqDTO) {
+        shortLinkService.updateShortLink(shortLinkUpdateReqDTO);
+        return Results.success();
+    }
+
+    /**
+     * 短链接跳转
+     */
+    @GetMapping("/{short-uri}")
+    public void restoreUrl(@PathVariable("short-uri") String shortUri, ServletResponse response, ServletRequest request) throws IOException {
+        shortLinkService.restoreUrl(shortUri, response, request);
     }
 
 }
