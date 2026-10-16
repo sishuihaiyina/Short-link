@@ -261,8 +261,10 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             ((HttpServletResponse) response).sendRedirect("/page/notfound");
             return;
         }
+        // 空值缓存，防止同一短链接被重复请求
         String gotoIsNullShortLink = stringRedisTemplate.opsForValue().get(String.format(RedisKeyConstant.GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl));
         if (StrUtil.isNotBlank(gotoIsNullShortLink)) {
+            ((HttpServletResponse) response).sendRedirect("/page/notfound");
             return;
         }
 
@@ -290,21 +292,20 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .eq(ShortLinkDO::getDelFlag, 0)
                     .eq(ShortLinkDO::getFullShortUrl, fullShortUrl);
             ShortLinkDO shortLinkDO = baseMapper.selectOne(queryWrapper);
-            if (shortLinkDO != null) {
+            //
+            if (shortLinkDO == null || (shortLinkDO.getValidDate() != null && shortLinkDO.getValidDate().before(new Date()))) {
                 // 判断是否过期
-                if (shortLinkDO.getValidDate() != null && shortLinkDO.getValidDate().before(new Date())) {
-                    stringRedisTemplate.opsForValue().set(String.format(RedisKeyConstant.GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30L, TimeUnit.SECONDS);
-                    ((HttpServletResponse) response).sendRedirect("/page/notfound");
-                    return;
-                }
-                // 将短链接跳转目标缓存到 Redis
-                stringRedisTemplate.opsForValue().set(
-                        String.format(RedisKeyConstant.GOTO_SHORT_LINK_KEY, fullShortUrl),
-                        shortLinkDO.getOriginUrl(),
-                        LinkUtil.getLinkCacheValidDate(shortLinkDO.getValidDate()),
-                        TimeUnit.MILLISECONDS);
-                ((HttpServletResponse) response).sendRedirect(shortLinkDO.getOriginUrl());
+                stringRedisTemplate.opsForValue().set(String.format(RedisKeyConstant.GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30L, TimeUnit.SECONDS);
+                ((HttpServletResponse) response).sendRedirect("/page/notfound");
+                return;
             }
+            // 将短链接跳转目标缓存到 Redis
+            stringRedisTemplate.opsForValue().set(
+                    String.format(RedisKeyConstant.GOTO_SHORT_LINK_KEY, fullShortUrl),
+                    shortLinkDO.getOriginUrl(),
+                    LinkUtil.getLinkCacheValidDate(shortLinkDO.getValidDate()),
+                    TimeUnit.MILLISECONDS);
+            ((HttpServletResponse) response).sendRedirect(shortLinkDO.getOriginUrl());
         } finally {
             lock.unlock();
         }

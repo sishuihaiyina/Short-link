@@ -5,8 +5,12 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.cdy.shortlink.admin.common.convention.result.Result;
+import com.cdy.shortlink.admin.dto.req.RecycleBinRecoverReqDTO;
+import com.cdy.shortlink.admin.dto.req.RecycleBinRemoveReqDTO;
+import com.cdy.shortlink.admin.dto.req.RecycleBinSaveReqDTO;
 import com.cdy.shortlink.admin.remote.dto.req.ShortLinkCreateReqDTO;
 import com.cdy.shortlink.admin.remote.dto.req.ShortLinkPageReqDTO;
+import com.cdy.shortlink.admin.remote.dto.req.ShortLinkRecycleBinPageReqDTO;
 import com.cdy.shortlink.admin.remote.dto.req.ShortLinkUpdateReqDTO;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkCreateRespDTO;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkGroupCountQueryRespDTO;
@@ -78,4 +82,45 @@ public interface ShortLinkRemoteService {
         return JSON.parseObject(resultStr, new TypeReference<>() {});
     }
 
+    /**
+     * 回收站保存
+     * @param recycleBinSaveReqDTO 回收站保存请求DTO
+     * @return 空
+     */
+    default void saveRecycleBin(RecycleBinSaveReqDTO recycleBinSaveReqDTO) {
+        HttpUtil.post("http://localhost:8001/api/short-link/v1/recycle-bin/save", JSON.toJSONString(recycleBinSaveReqDTO));
+    }
+
+    /**
+     * 回收站分页
+     * @param recycleBinPageReqDTO 回收站分页请求DTO
+     * @return 回收站分页响应DTO
+     */
+    default Result<IPage<ShortLinkPageRespDTO>> pageRecycleBin(ShortLinkRecycleBinPageReqDTO recycleBinPageReqDTO) {
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("gidList", recycleBinPageReqDTO.getGidList());
+        requestMap.put("current", recycleBinPageReqDTO.getCurrent());
+        requestMap.put("size", recycleBinPageReqDTO.getSize());
+        String resultPageStr = HttpUtil.get("http://localhost:8001/api/short-link/v1/recycle-bin/page", requestMap);
+
+        return JSON.parseObject(resultPageStr, new TypeReference<>() {});
+    }
+
+    /**
+     * 回收站恢复
+     * @param recycleBinRecoverReqDTO 回收站恢复请求DTO
+     * @return 空
+     */
+    default void recoverRecycleBin(RecycleBinRecoverReqDTO recycleBinRecoverReqDTO) {
+        HttpUtil.post("http://localhost:8001/api/short-link/v1/recycle-bin/recover", JSON.toJSONString(recycleBinRecoverReqDTO));
+    }
+
+    /**
+     * 回收站删除
+     * @param recycleBinRemoveReqDTO 回收站删除请求DTO
+     * @return 空
+     */
+    default void removeRecycleBin(RecycleBinRemoveReqDTO recycleBinRemoveReqDTO) {
+        HttpUtil.post("http://localhost:8001/api/short-link/v1/recycle-bin/remove", JSON.toJSONString(recycleBinRemoveReqDTO));
+    }
 }
