@@ -258,6 +258,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         String serverName = request.getServerName();
         String fullShortUrl = serverName + "/" + shortUri;
         String originalLink = stringRedisTemplate.opsForValue().get(String.format(RedisKeyConstant.GOTO_SHORT_LINK_KEY, fullShortUrl));
+        // 缓存命中，直接跳转原始链接
         if (StrUtil.isNotBlank(originalLink)) {
             // 插入短链接访问统计 (无gid)
             shortLinkStats(request, response, fullShortUrl, null);
@@ -353,38 +354,57 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
      * @param response 响应
      */
     private void shortLinkStats(ServletRequest request, ServletResponse response, String fullShortUrl, String gid) {
+        // Java的lambda不能直接给外面的boolean赋值，用AtomicBoolean可以绕过限制
         AtomicBoolean uvFirstFlag = new AtomicBoolean();
         Cookie[] cookies = ((HttpServletRequest) request).getCookies();
         try {
             Runnable addResponseCookieTask = () -> {
+                // 生成UUID
                 String uv = UUID.fastUUID().toString();
                 Cookie uvCookies = new Cookie("uv", uv);
                 uvCookies.setMaxAge(60 * 60 * 24 * 30);
+                // 设置路径为短链接路径
                 uvCookies.setPath(StrUtil.sub(fullShortUrl, fullShortUrl.indexOf("/"), fullShortUrl.length()));
+                // 将UUID塞进Cookie返回给浏览器
                 ((HttpServletResponse) response).addCookie(uvCookies);
+                // 标记首次
                 uvFirstFlag.set(Boolean.TRUE);
-                // 添加到redis里没有设置过期时间
+                // 添加到redis里但没有设置过期时间
                 stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl, uv);
             };
+            // 三种情况分发
             if (ArrayUtil.isNotEmpty(cookies)) {
+                // 有Cookie，判断是否有uv
                 Arrays.stream(cookies)
                         .filter(each -> Objects.equals(each.getName(), "uv"))
                         .findFirst()
                         .map(Cookie::getValue)
                         .ifPresentOrElse(each -> {
-                            Long added =  stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl, each);
-                            uvFirstFlag.set(added != null && added > 0);
+                            Long uvAdded =  stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl, each);
+                            // 有Cookie但是没有uv，判定为新访客
+                            uvFirstFlag.set(uvAdded != null && uvAdded > 0);
                         }, addResponseCookieTask);
             } else {
+                // 没有Cookie，判定为新访客，添加新的Cookie
                 addResponseCookieTask.run();
             }
 
+            // 获取用户访问IP
+            String remoteAddr = LinkUtil.getIp((HttpServletRequest) request);
+            // 添加用户访问IP到Redis
+            Long uipAdded =  stringRedisTemplate.opsForSet().add("short-link:stats:uip" + fullShortUrl, remoteAddr);
+            // 判断是否是新访客
+            boolean uipFirstFlag = uipAdded != null && uipAdded > 0L;
+
+            // 补写缓存命中时拿不到gid的情况，从数据库查询gid
             if (StrUtil.isBlank(gid)) {
                 LambdaQueryWrapper<ShortLinkGotoDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
                         .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
                 ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(queryWrapper);
                 gid = shortLinkGotoDO.getGid();
             }
+
+            // 插入短链接访问统计 (有gid)
             int hour = DateUtil.hour(new Date(), true);
             Week week = DateUtil.dayOfWeekEnum(new Date());
             int weekValue = week.getIso8601Value();
@@ -393,7 +413,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .gid(gid)
                     .date(new Date())
                     .pv(1)
-                    .uip(1)
+                    .uip(uipFirstFlag ? 1 : 0)
                     .uv(uvFirstFlag.get() ? 1 : 0)
                     .hour(hour)
                     .weekday(weekValue)
