@@ -6,6 +6,8 @@ import cn.hutool.core.date.Week;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpUtil;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -13,13 +15,16 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cdy.shortlink.project.common.constant.RedisKeyConstant;
+import com.cdy.shortlink.project.common.constant.ShortLinkConstant;
 import com.cdy.shortlink.project.common.convention.exception.ClientException;
 import com.cdy.shortlink.project.common.convention.exception.ServiceException;
 import com.cdy.shortlink.project.common.enums.VailDateTypeEnum;
 import com.cdy.shortlink.project.dao.entity.LinkAccessStatsDO;
+import com.cdy.shortlink.project.dao.entity.LinkLocaleStatsDO;
 import com.cdy.shortlink.project.dao.entity.ShortLinkDO;
 import com.cdy.shortlink.project.dao.entity.ShortLinkGotoDO;
 import com.cdy.shortlink.project.dao.mapper.LinkAccessStatsMapper;
+import com.cdy.shortlink.project.dao.mapper.LinkLocaleStatsMapper;
 import com.cdy.shortlink.project.dao.mapper.ShortLinkGotoMapper;
 import com.cdy.shortlink.project.dao.mapper.ShortLinkMapper;
 import com.cdy.shortlink.project.dto.req.ShortLinkCreateReqDTO;
@@ -45,6 +50,7 @@ import org.jsoup.nodes.Element;
 import org.redisson.api.RBloomFilter;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -70,6 +76,11 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final StringRedisTemplate stringRedisTemplate;
     private final RedissonClient redissonClient;
     private final LinkAccessStatsMapper linkAccessStatsMapper;
+    private final LinkLocaleStatsMapper linkLocaleStatsMapper;
+
+
+    @Value("${short-link.stats.locale.amap-key}")
+    private String statsLocaleAmapKey;
 
 
     /**
@@ -419,8 +430,33 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .weekday(weekValue)
                     .build();
             linkAccessStatsMapper.shortLinkStats(linkAccessStatsDO);
+
+            // 插入短链接区域统计
+            Map<String, Object> localeParamMap = new HashMap<>();
+            localeParamMap.put("key", statsLocaleAmapKey);
+            localeParamMap.put("ip", remoteAddr);
+            String localeResultStr = HttpUtil.get(ShortLinkConstant.AMAP_REMOTE_URL, localeParamMap);
+            JSONObject localeResultObj = JSONObject.parseObject(localeResultStr);
+            String infoCode = localeResultObj.getString("infocode");
+            if (StrUtil.isNotBlank(infoCode) && StrUtil.equals(infoCode, "10000")) {
+                String province = localeResultObj.getString("province");
+                boolean unknownFlag = StrUtil.equals(province, "[]");
+                LinkLocaleStatsDO linkLocaleStatsDO = LinkLocaleStatsDO.builder()
+                        .fullShortUrl(fullShortUrl)
+                        .province(unknownFlag ? "未知" : province)
+                        .city(unknownFlag ? "未知" : localeResultObj.getString("city"))
+                        .adcode(unknownFlag ? "未知" : localeResultObj.getString("adcode"))
+                        .cnt(1)
+                        .country("中国")
+                        .gid(gid)
+                        .date(new Date())
+                        .build();
+                linkLocaleStatsMapper.shortLinkLocaleStats(linkLocaleStatsDO);
+            }
+
         } catch (Throwable e) {
             log.error("短链接统计访问失败", e);
         }
+
     }
 }
