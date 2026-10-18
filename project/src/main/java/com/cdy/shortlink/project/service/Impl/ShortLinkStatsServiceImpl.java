@@ -1,6 +1,7 @@
 package com.cdy.shortlink.project.service.Impl;
 
-import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateField;
+import cn.hutool.core.date.DateUtil;
 import com.cdy.shortlink.project.dao.entity.LinkAccessStatsDO;
 import com.cdy.shortlink.project.dao.entity.LinkDeviceStatsDO;
 import com.cdy.shortlink.project.dao.entity.LinkLocaleStatsDO;
@@ -12,10 +13,7 @@ import com.cdy.shortlink.project.service.ShortLinkStatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -38,8 +36,37 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
      */
     @Override
     public ShortLinkStatsRespDTO oneShortLinkStats(ShortLinkStatsReqDTO requestParam) {
-        // 基础访问详情
+
         List<LinkAccessStatsDO> listStatsByShortLink = linkAccessStatsMapper.listStatsByShortLink(requestParam);
+
+        // 基础访问详情
+        int pv = listStatsByShortLink.stream().mapToInt(LinkAccessStatsDO::getPv).sum();
+        int uv = listStatsByShortLink.stream().mapToInt(LinkAccessStatsDO::getUv).sum();
+        int uip = listStatsByShortLink.stream().mapToInt(LinkAccessStatsDO::getUip).sum();
+        List<ShortLinkStatsAccessDailyRespDTO> daily = new ArrayList<>();
+        List<String> rangeDates = DateUtil.rangeToList(DateUtil.parse(requestParam.getStartDate()), DateUtil.parse(requestParam.getEndDate()), DateField.DAY_OF_MONTH).stream()
+                .map(DateUtil::formatDate)
+                .toList();
+        rangeDates.forEach(each -> listStatsByShortLink.stream()
+                .filter(item -> Objects.equals(each, DateUtil.formatDate(item.getDate())))
+                .findFirst()
+                .ifPresentOrElse(item -> {
+                    ShortLinkStatsAccessDailyRespDTO accessDailyRespDTO = ShortLinkStatsAccessDailyRespDTO.builder()
+                            .date(each)
+                            .pv(item.getPv())
+                            .uv(item.getUv())
+                            .uip(item.getUip())
+                            .build();
+                    daily.add(accessDailyRespDTO);
+                }, () -> {
+                    ShortLinkStatsAccessDailyRespDTO accessDailyRespDTO = ShortLinkStatsAccessDailyRespDTO.builder()
+                            .date(each)
+                            .pv(0)
+                            .uv(0)
+                            .uip(0)
+                            .build();
+                    daily.add(accessDailyRespDTO);
+                }));
 
         // 地区访问详情（仅国内）
         List<ShortLinkStatsLocaleCNRespDTO> localeCnStats = new ArrayList<>();
@@ -135,10 +162,19 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
         // 访客访问类型详情
         List<ShortLinkStatsUvRespDTO> uvTypeStats = new ArrayList<>();
         HashMap<String, Object> findUvTypeByShortLink = linkAccessLogsMapper.findUvTypeCntByShortLink(requestParam);
-        Object oldCnt = findUvTypeByShortLink.get("oldUserCnt");
         // 处理没有任何访问日志的情况
-        int oldUserCnt = oldCnt == null ? 0 : Integer.parseInt(oldCnt.toString());
-        int newUserCnt = Integer.parseInt(findUvTypeByShortLink.get("newUserCnt").toString());
+        int oldUserCnt = Integer.parseInt(
+                Optional.ofNullable(findUvTypeByShortLink)
+                        .map(each -> each.get("oldUserCnt"))
+                        .map(Object::toString)
+                        .orElse("0")
+        );
+        int newUserCnt = Integer.parseInt(
+                Optional.ofNullable(findUvTypeByShortLink)
+                        .map(each -> each.get("newUserCnt"))
+                        .map(Object::toString)
+                        .orElse("0")
+        );
         int uvSum = oldUserCnt + newUserCnt;
         double oldRatio = (double) oldUserCnt / uvSum;
         double actualOldRatio = Math.round(oldRatio * 100.0) / 100.0;
@@ -190,8 +226,12 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
                     .build();
             networkStats.add(networkRespDTO);
         });
+
         return ShortLinkStatsRespDTO.builder()
-                .daily(BeanUtil.copyToList(listStatsByShortLink, ShortLinkStatsAccessDailyRespDTO.class))
+                .pv(pv)
+                .uv(uv)
+                .uip(uip)
+                .daily(daily)
                 .localeCnStats(localeCnStats)
                 .hourStats(hourStats)
                 .topIpStats(topIpStats)
