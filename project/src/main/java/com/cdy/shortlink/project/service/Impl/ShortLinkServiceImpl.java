@@ -56,6 +56,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 短链接服务层实现
@@ -73,6 +74,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final LinkLocaleStatsMapper linkLocaleStatsMapper;
     private final LinkOsStatsMapper linkOsStatsMapper;
     private final LinkBrowserStatsMapper linkBrowserStatsMapper;
+    private final LinkAccessLogsMapper linkAccessLogsMapper;
 
 
     @Value("${short-link.stats.locale.amap-key}")
@@ -365,10 +367,11 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         AtomicBoolean uvFirstFlag = new AtomicBoolean();
         Cookie[] cookies = ((HttpServletRequest) request).getCookies();
         try {
+            AtomicReference<String> uv = new AtomicReference<>();
             Runnable addResponseCookieTask = () -> {
                 // 生成UUID
-                String uv = UUID.fastUUID().toString();
-                Cookie uvCookies = new Cookie("uv", uv);
+                uv.set(UUID.fastUUID().toString());
+                Cookie uvCookies = new Cookie("uv", uv.get());
                 uvCookies.setMaxAge(60 * 60 * 24 * 30);
                 // 设置路径为短链接路径
                 uvCookies.setPath(StrUtil.sub(fullShortUrl, fullShortUrl.indexOf("/"), fullShortUrl.length()));
@@ -377,7 +380,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 // 标记首次
                 uvFirstFlag.set(Boolean.TRUE);
                 // 添加到redis里但没有设置过期时间
-                stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl, uv);
+                stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl, uv.get());
             };
             // 三种情况分发
             if (ArrayUtil.isNotEmpty(cookies)) {
@@ -387,6 +390,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                         .findFirst()
                         .map(Cookie::getValue)
                         .ifPresentOrElse(each -> {
+                            uv.set(each);
                             Long uvAdded =  stringRedisTemplate.opsForSet().add("short-link:stats:uv" + fullShortUrl, each);
                             // 有Cookie但是没有uv，判定为新访客
                             uvFirstFlag.set(uvAdded != null && uvAdded > 0);
@@ -468,6 +472,17 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                         .date(new Date())
                         .build();
                 linkBrowserStatsMapper.shortLinkBrowserState(linkBrowserStatsDO);
+
+                // 插入短链接访问日志监控
+                LinkAccessLogsDO linkAccessLogsDO = LinkAccessLogsDO.builder()
+                        .fullShortUrl(fullShortUrl)
+                        .gid(gid)
+                        .user(uv.get())
+                        .browser(LinkUtil.getBrowser(((HttpServletRequest) request)))
+                        .os(LinkUtil.getOs((HttpServletRequest) request))
+                        .ip(remoteAddr)
+                        .build();
+                linkAccessLogsMapper.insert(linkAccessLogsDO);
             }
 
         } catch (Throwable e) {
