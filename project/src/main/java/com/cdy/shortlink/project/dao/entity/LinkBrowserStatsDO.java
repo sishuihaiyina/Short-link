@@ -15,7 +15,7 @@ import java.util.Date;
  * 短链接浏览器统计
  */
 @Data
-@TableName("link_browser_stats")
+@TableName("t_link_browser_stats")
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
