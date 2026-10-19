@@ -15,6 +15,10 @@ import java.util.List;
  */
 public interface LinkOsStatsMapper extends BaseMapper<LinkOsStatsDO> {
 
+    /**
+     * 记录访问操作系统监控数据
+     * @param linkOsStatsDO
+     */
     @Insert("INSERT INTO t_link_os_stats (full_short_url, gid, date, cnt, os, create_time, update_time, del_flag) " +
             "VALUES (#{linkOsStats.fullShortUrl}, " +
             "#{linkOsStats.gid}, " +
