@@ -30,6 +30,16 @@ rules:
             shardingColumn: full_short_url
             # 分片算法，对应 rules[0].shardingAlgorithms
             shardingAlgorithmName: link_goto_table_hash_mod
+      t_link_stats_today:
+        # 真实数据节点
+        actualDataNodes: ds_0.t_link_stats_today_${0..15}
+        # 分表策略
+        tableStrategy:
+          standard:
+            # 分片键：完整短链接（查今日数据时一定带着它）
+            shardingColumn: full_short_url
+            # 分片算法，对应 rules[0].shardingAlgorithms
+            shardingAlgorithmName: link_stats_today_hash_mod
     # 分片算法
     shardingAlgorithms:
       # 短链接表分片算法
@@ -41,6 +51,13 @@ rules:
           sharding-count: 16
       # 短链跳转路由表分片算法
       link_goto_table_hash_mod:
+        # 根据分片键 Hash 分片
+        type: HASH_MOD
+        # 分片数量
+        props:
+          sharding-count: 16
+      # 今日统计表分片算法
+      link_stats_today_hash_mod:
         # 根据分片键 Hash 分片
         type: HASH_MOD
         # 分片数量
