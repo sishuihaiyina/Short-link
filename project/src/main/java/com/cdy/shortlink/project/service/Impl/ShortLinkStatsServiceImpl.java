@@ -1,12 +1,15 @@
 package com.cdy.shortlink.project.service.Impl;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateUtil;
-import com.cdy.shortlink.project.dao.entity.LinkAccessStatsDO;
-import com.cdy.shortlink.project.dao.entity.LinkDeviceStatsDO;
-import com.cdy.shortlink.project.dao.entity.LinkLocaleStatsDO;
-import com.cdy.shortlink.project.dao.entity.LinkNetworkStatsDO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.cdy.shortlink.project.dao.entity.*;
 import com.cdy.shortlink.project.dao.mapper.*;
+import com.cdy.shortlink.project.dto.req.ShortLinkStatsAccessRecordReqDTO;
 import com.cdy.shortlink.project.dto.req.ShortLinkStatsReqDTO;
 import com.cdy.shortlink.project.dto.resp.*;
 import com.cdy.shortlink.project.service.ShortLinkStatsService;
@@ -242,5 +245,49 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
                 .deviceStats(deviceStats)
                 .networkStats(networkStats)
                 .build();
+    }
+
+
+    /**
+     * 获取单个短链接指定时间内访问记录监控数据
+     */
+    @Override
+    public IPage<ShortLinkStatsAccessRecordRespDTO> oneShortLinkStatsAccessRecord(ShortLinkStatsAccessRecordReqDTO shortLinkStatsAccessRecordReqDTO) {
+        // 分页查询（无新老访客类型）
+        LambdaQueryWrapper<LinkAccessLogsDO> queryWrapper = Wrappers.lambdaQuery(LinkAccessLogsDO.class)
+                .eq(LinkAccessLogsDO::getFullShortUrl, shortLinkStatsAccessRecordReqDTO.getFullShortUrl())
+                .eq(LinkAccessLogsDO::getGid, shortLinkStatsAccessRecordReqDTO.getGid())
+                .between(LinkAccessLogsDO::getCreateTime, shortLinkStatsAccessRecordReqDTO.getStartDate(), shortLinkStatsAccessRecordReqDTO.getEndDate())
+                .eq(LinkAccessLogsDO::getDelFlag, 0)
+                .orderByDesc(LinkAccessLogsDO::getCreateTime);
+        IPage<LinkAccessLogsDO> linkAccessLogsDOIPage = linkAccessLogsMapper.selectPage(shortLinkStatsAccessRecordReqDTO, queryWrapper);
+        IPage<ShortLinkStatsAccessRecordRespDTO> actualResult = linkAccessLogsDOIPage.convert(each -> BeanUtil.toBean(each, ShortLinkStatsAccessRecordRespDTO.class));
+        // 收集本页所有访客
+        List<String> userAccessLogsList = linkAccessLogsDOIPage.getRecords().stream()
+                .map(LinkAccessLogsDO::getUser)
+                .toList();
+        // 批量查询访客类型
+        // 时间范围内没有数据直接返回空结果
+        if (CollUtil.isEmpty(userAccessLogsList)) {
+            return actualResult;   // 本页没数据，不用查新老访客
+        }
+        List<Map<String, Object>> uvTypeList = linkAccessLogsMapper.selectUvTypeByUsers(
+                shortLinkStatsAccessRecordReqDTO.getGid(),
+                shortLinkStatsAccessRecordReqDTO.getFullShortUrl(),
+                shortLinkStatsAccessRecordReqDTO.getStartDate(),
+                shortLinkStatsAccessRecordReqDTO.getEndDate(),
+                userAccessLogsList
+        );
+        // 合并访客类型
+        actualResult.getRecords().forEach(each -> {
+             String uvType = uvTypeList.stream()
+                     .filter(item -> Objects.equals(item.get("user"), each.getUser()))
+                     .findFirst()
+                     .map(item -> item.get("uvType"))
+                     .map(Object::toString)
+                     .orElse("旧访客");
+             each.setUvType(uvType);
+        });
+        return actualResult;
     }
 }

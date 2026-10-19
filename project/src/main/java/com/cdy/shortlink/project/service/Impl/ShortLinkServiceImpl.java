@@ -364,6 +364,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
      * @param request 请求
      * @param response 响应
      */
+    // 通过生成UUID存入浏览器Cookie来实现访客类型统计，因为这样可以在无登录场景下统计匿名访客类型
     private void shortLinkStats(ServletRequest request, ServletResponse response, String fullShortUrl, String gid) {
         // Java的lambda不能直接给外面的boolean赋值，用AtomicBoolean可以绕过限制
         AtomicBoolean uvFirstFlag = new AtomicBoolean();
@@ -482,6 +483,9 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                         .user(uv.get())
                         .browser(LinkUtil.getBrowser(((HttpServletRequest) request)))
                         .os(LinkUtil.getOs((HttpServletRequest) request))
+                        .network(LinkUtil.getNetwork(((HttpServletRequest) request)))
+                        .device(LinkUtil.getDevice(((HttpServletRequest) request)))
+                        .locale(StrUtil.join("-", "中国", unknownFlag ? "未知" : province, unknownFlag ? "未知" : localeResultObj.getString("city")))
                         .ip(remoteAddr)
                         .build();
                 linkAccessLogsMapper.insert(linkAccessLogsDO);
