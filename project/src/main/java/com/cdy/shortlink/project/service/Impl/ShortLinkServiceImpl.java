@@ -257,6 +257,33 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             shortLinkDO.setGid(shortLinkUpdateReqDTO.getGid());
             baseMapper.insert(shortLinkDO);
         }
+        // 原始链接或有效期任一变化，都要让正向缓存（完整短链 → 原始链接）失效
+        boolean originUrlChanged = !Objects.equals(hasShortLinkDO.getOriginUrl(), shortLinkUpdateReqDTO.getOriginUrl());
+        boolean validDateChanged = !Objects.equals(hasShortLinkDO.getValidDateType(), shortLinkUpdateReqDTO.getValidDateType())
+                || !Objects.equals(hasShortLinkDO.getValidDate(), shortLinkUpdateReqDTO.getValidDate());
+
+        if (originUrlChanged || validDateChanged) {
+            // 1. 清正向缓存：旧的跳转目标 / 旧的 TTL 都不能再用了
+            stringRedisTemplate.delete(String.format(
+                    RedisKeyConstant.GOTO_SHORT_LINK_KEY, shortLinkUpdateReqDTO.getFullShortUrl()));
+
+            // 2. 如果原本是"已过期"状态，判断更新后是否恢复有效
+            Date now = new Date();
+            boolean wasExpired = hasShortLinkDO.getValidDate() != null
+                    && hasShortLinkDO.getValidDate().before(now);
+            if (wasExpired) {
+                boolean nowPermanent = Objects.equals(
+                        shortLinkUpdateReqDTO.getValidDateType(), VailDateTypeEnum.PERMANENT.getType());
+                boolean newDateInFuture = shortLinkUpdateReqDTO.getValidDate() != null
+                        && shortLinkUpdateReqDTO.getValidDate().after(now);
+                if (nowPermanent || newDateInFuture) {
+                    // 清掉之前写入的空值缓存，否则 30 秒内仍会被判为不存在
+                    stringRedisTemplate.delete(String.format(
+                            RedisKeyConstant.GOTO_IS_NULL_SHORT_LINK_KEY, shortLinkUpdateReqDTO.getFullShortUrl()));
+                }
+            }
+        }
+
     }
 
     /**
@@ -319,7 +346,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .eq(ShortLinkDO::getDelFlag, 0)
                     .eq(ShortLinkDO::getFullShortUrl, fullShortUrl);
             ShortLinkDO shortLinkDO = baseMapper.selectOne(queryWrapper);
-            //
+            // 短链接不存在或已过期
             if (shortLinkDO == null || (shortLinkDO.getValidDate() != null && shortLinkDO.getValidDate().before(new Date()))) {
                 // 判断是否过期
                 stringRedisTemplate.opsForValue().set(String.format(RedisKeyConstant.GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30L, TimeUnit.SECONDS);
