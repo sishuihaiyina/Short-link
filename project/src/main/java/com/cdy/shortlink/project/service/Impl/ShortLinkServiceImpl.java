@@ -83,6 +83,9 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
 
+    @Value("${short-link.domain.default}")
+    private String createShortLinkDefaultDomain;
+
 
     /**
      * 创建短链接
@@ -95,10 +98,10 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         // 生成后缀
         String shortLinkSuffix = generateSuffix(shortLinkCreateReqDTO);
         // 生成完整短链接
-        String fullShortUrl = shortLinkCreateReqDTO.getDomain() + "/" + shortLinkSuffix;
+        String fullShortUrl = createShortLinkDefaultDomain + "/" + shortLinkSuffix;
         // 构建短链接DO
         ShortLinkDO shortLinkDO = ShortLinkDO.builder()
-                .domain(shortLinkCreateReqDTO.getDomain())
+                .domain(createShortLinkDefaultDomain)
                 .originUrl(shortLinkCreateReqDTO.getOriginUrl())
                 .gid(shortLinkCreateReqDTO.getGid())
                 .createdType(shortLinkCreateReqDTO.getCreatedType())
@@ -266,7 +269,12 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     @Override
     public void restoreUrl(String shortUri, ServletResponse response, ServletRequest request) throws IOException {
         String serverName = request.getServerName();
-        String fullShortUrl = serverName + "/" + shortUri;
+        String serverPort = Optional.of(request.getServerPort())
+                .filter(each -> !Objects.equals(each, 80))
+                .map(String::valueOf)
+                .map(each -> ":" + each)
+                .orElse("");
+        String fullShortUrl = serverName + serverPort + "/" + shortUri;
         String originalLink = stringRedisTemplate.opsForValue().get(String.format(RedisKeyConstant.GOTO_SHORT_LINK_KEY, fullShortUrl));
         // 缓存命中，直接跳转原始链接
         if (StrUtil.isNotBlank(originalLink)) {
