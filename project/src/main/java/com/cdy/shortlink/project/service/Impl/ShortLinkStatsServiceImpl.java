@@ -42,6 +42,8 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
 
         List<LinkAccessStatsDO> listStatsByShortLink = linkAccessStatsMapper.listStatsByShortLink(requestParam);
 
+        // 基础访问数据
+        LinkAccessStatsDO pvUvUipStatsByShortLink = linkAccessLogsMapper.findPvUvUipStatsByShortLink(requestParam);
         // 基础访问详情
         int pv = listStatsByShortLink.stream().mapToInt(LinkAccessStatsDO::getPv).sum();
         int uv = listStatsByShortLink.stream().mapToInt(LinkAccessStatsDO::getUv).sum();
@@ -231,9 +233,9 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
         });
 
         return ShortLinkStatsRespDTO.builder()
-                .pv(pv)
-                .uv(uv)
-                .uip(uip)
+                .pv(pvUvUipStatsByShortLink.getPv())
+                .uv(pvUvUipStatsByShortLink.getUv())
+                .uip(pvUvUipStatsByShortLink.getUip())
                 .daily(daily)
                 .localeCnStats(localeCnStats)
                 .hourStats(hourStats)

@@ -24,7 +24,7 @@ public interface ShortLinkMapper extends BaseMapper<ShortLinkDO> {
     );
 
     /**
-     * 分页统计短链接
+     * 分页统计短链接访问数据
      */
     IPage<ShortLinkDO> pageLink(ShortLinkPageReqDTO requestParam);
 }
