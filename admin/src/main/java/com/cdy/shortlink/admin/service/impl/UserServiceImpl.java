@@ -1,6 +1,7 @@
 package com.cdy.shortlink.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -27,6 +28,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -136,14 +138,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
             throw new ClientException(UserErrorCodeEnum.USER_NULL);
         }
 
-        /** TODO 优化登录逻辑2
-         * 问题：这种设计只允许单端登录。如果用户想在手机和电脑同时登录，会被拒绝。
-         * 而且，如果用户异常退出（如清除了浏览器缓存但未调用登出），Redis 中的 key 仍在 30 分钟内有效，用户无法重新登录，体验差。
-         * 更合理的做法是允许同一用户有多个 token，或者提供“挤下线”功能
-         */
-        Boolean hasLogin = stringRedisTemplate.hasKey("login_" + userLoginReqDTO.getUsername());
-        if (hasLogin != null && hasLogin) {
-            throw new ClientException(UserErrorCodeEnum.USER_LOGIN);
+        // 允许用户在不同端登录，如手机和电脑
+        Map<Object, Object> hasLoginMap = stringRedisTemplate.opsForHash().entries("login_" + userLoginReqDTO.getUsername());
+        if (CollUtil.isNotEmpty(hasLoginMap)) {
+            // 返回已登录的 token
+            String token = hasLoginMap.keySet().stream()
+                    .findFirst()
+                    .map(Object::toString)
+                    .orElseThrow(() -> new ClientException("用户登录错误"));
+            return new UserLoginRespDTO(token);
         }
 
         String uuid = UUID.randomUUID().toString();
@@ -160,7 +163,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
          * 可以使用 setIfAbsent 或分布式锁来保证原子性
          **/
         stringRedisTemplate.opsForHash().put("login_" + userLoginReqDTO.getUsername(), uuid, JSON.toJSONString(userDO));
-        stringRedisTemplate.expire("login_" + userLoginReqDTO.getUsername(), 30L, TimeUnit.DAYS);
+        stringRedisTemplate.expire("login_" + userLoginReqDTO.getUsername(), 30L, TimeUnit.MINUTES);
 
         return new UserLoginRespDTO(uuid);
     }
