@@ -1,11 +1,14 @@
 package com.cdy.shortlink.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cdy.shortlink.admin.common.biz.user.UserContext;
+import com.cdy.shortlink.admin.common.constant.RedisCacheConstant;
+import com.cdy.shortlink.admin.common.convention.exception.ClientException;
 import com.cdy.shortlink.admin.common.convention.result.Result;
 import com.cdy.shortlink.admin.dao.entity.GroupDO;
 import com.cdy.shortlink.admin.dao.mapper.GroupMapper;
@@ -16,7 +19,11 @@ import com.cdy.shortlink.admin.remote.ShortLinkRemoteService;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import com.cdy.shortlink.admin.service.GroupService;
 import com.cdy.shortlink.admin.toolkit.RandomGenerator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,7 +35,13 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implements GroupService {
+
+    private final RedissonClient redissonClient;
+
+    @Value("${short-link.group.max-number}")
+    private Integer maxNumber;
 
     /**
      * 后续重构为SpringCloud feign调用
@@ -53,18 +66,32 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
      */
     @Override
     public void saveGroup(String username,String groupName) {
-        String gid;
-        do {
-            gid = RandomGenerator.generateRandom();
-        } while (!hasGid(username, gid));
+        // 引入分布式锁防止一个用户同时创建超过最大分组数量
+        RLock lock = redissonClient.getLock(String.format(RedisCacheConstant.LOCK_GROUP_CREATE_KEY, username));
+        lock.lock();
+        try {
+            LambdaQueryWrapper<GroupDO> queryWrapper = Wrappers.lambdaQuery(GroupDO.class)
+                    .eq(GroupDO::getUsername, username)
+                    .eq(GroupDO::getDelFlag, 0);
+            List<GroupDO> groupList = baseMapper.selectList(queryWrapper);
+            if (CollUtil.isNotEmpty(groupList) && groupList.size() == maxNumber) {
+                throw new ClientException(String.format("用户已创建最大分组数量：%d",maxNumber));
+            }
+            String gid;
+            do {
+                gid = RandomGenerator.generateRandom();
+            } while (!hasGid(username, gid));
 
-        GroupDO groupDO = GroupDO.builder()
-                .gid(gid)
-                .sortOrder(0)       // 排序字段默认值为0
-                .username(username)
-                .name(groupName)
-                .build();
-        baseMapper.insert(groupDO);
+            GroupDO groupDO = GroupDO.builder()
+                    .gid(gid)
+                    .sortOrder(0)       // 排序字段默认值为0
+                    .username(username)
+                    .name(groupName)
+                    .build();
+            baseMapper.insert(groupDO);
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
