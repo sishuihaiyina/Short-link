@@ -43,4 +43,9 @@ public class ShortLinkUpdateReqDTO {
      */
     @TableField("`describe`")
     private String describe;
+
+    /**
+     * 原始分组标识
+     */
+    private String originGid;
 }
