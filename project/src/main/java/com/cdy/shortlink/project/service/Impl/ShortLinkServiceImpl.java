@@ -128,8 +128,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .fullShortUrl(fullShortUrl)
                     .build());
         } catch (DuplicateKeyException ex) {
-                log.warn("短链接：{} 重复入库", fullShortUrl);
-                throw new ServiceException("短链接生成重复");
+            throw new ServiceException(String.format("短链接：%s 生成重复", fullShortUrl));
         }
         // 缓存预热
         stringRedisTemplate.opsForValue().set(

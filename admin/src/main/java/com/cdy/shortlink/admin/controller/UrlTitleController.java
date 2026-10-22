@@ -1,7 +1,7 @@
 package com.cdy.shortlink.admin.controller;
 
 import com.cdy.shortlink.admin.common.convention.result.Result;
-import com.cdy.shortlink.admin.remote.ShortLinkRemoteService;
+import com.cdy.shortlink.admin.remote.ShortLinkActualRemoteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -14,11 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class UrlTitleController {
 
-    /**
-     * 后续重构为SpringCloud feign调用
-     */
-    ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {
-    };
+    private final ShortLinkActualRemoteService shortLinkActualRemoteService;
 
 
     /**
@@ -26,6 +22,6 @@ public class UrlTitleController {
      */
     @GetMapping("/api/short-link/admin/v1/title")
     public Result<String> getTitleByUrl(@RequestParam("url") String url) {
-        return shortLinkRemoteService.getTitleByUrl(url);
+        return shortLinkActualRemoteService.getTitleByUrl(url);
     }
 }
