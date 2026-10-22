@@ -2,7 +2,6 @@ package com.cdy.shortlink.project.mq.producer;
 
 import com.cdy.shortlink.project.common.constant.RedisKeyConstant;
 import com.cdy.shortlink.project.dto.biz.ShortLinkStatsRecordDTO;
-import lombok.RequiredArgsConstructor;
 import org.redisson.api.RBlockingDeque;
 import org.redisson.api.RDelayedQueue;
 import org.redisson.api.RedissonClient;
@@ -12,13 +11,19 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 延迟消费短链接统计发送者
- * 公众号：马丁玩编程，回复：加群，添加马哥微信（备注：link）获取项目资料
+ * <p>
+ * 延迟队列在构造时创建一次并复用，避免每次发送都注册新的定时转移任务。
  */
 @Component
-@RequiredArgsConstructor
 public class DelayShortLinkStatsProducer {
 
-    private final RedissonClient redissonClient;
+    private final RDelayedQueue<ShortLinkStatsRecordDTO> delayedQueue;
+
+    public DelayShortLinkStatsProducer(RedissonClient redissonClient) {
+        RBlockingDeque<ShortLinkStatsRecordDTO> blockingDeque =
+                redissonClient.getBlockingDeque(RedisKeyConstant.DELAY_QUEUE_STATS_KEY);
+        this.delayedQueue = redissonClient.getDelayedQueue(blockingDeque);
+    }
 
     /**
      * 发送延迟消费短链接统计
@@ -26,8 +31,7 @@ public class DelayShortLinkStatsProducer {
      * @param statsRecord 短链接统计实体参数
      */
     public void send(ShortLinkStatsRecordDTO statsRecord) {
-        RBlockingDeque<ShortLinkStatsRecordDTO> blockingDeque = redissonClient.getBlockingDeque(RedisKeyConstant.DELAY_QUEUE_STATS_KEY);
-        RDelayedQueue<ShortLinkStatsRecordDTO> delayedQueue = redissonClient.getDelayedQueue(blockingDeque);
+        // 延迟 5 秒，给「修改分组」的写锁留出释放时间
         delayedQueue.offer(statsRecord, 5, TimeUnit.SECONDS);
     }
 }

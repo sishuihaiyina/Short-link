@@ -5,6 +5,7 @@ import com.cdy.shortlink.project.dao.entity.LinkAccessLogsDO;
 import com.cdy.shortlink.project.dao.entity.LinkAccessStatsDO;
 import com.cdy.shortlink.project.dto.req.ShortLinkGroupStatsReqDTO;
 import com.cdy.shortlink.project.dto.req.ShortLinkStatsReqDTO;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -16,6 +17,24 @@ import java.util.Map;
  * 链接访问日志监控Mapper
  */
 public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
+
+    /**
+     * 插入访问日志，event_id 唯一索引用于重复消费的幂等去重
+     * <p>
+     * 必须用 INSERT IGNORE，不能用 ON DUPLICATE KEY UPDATE id = id：
+     * Connector/J 默认 useAffectedRows=false（CLIENT_FOUND_ROWS），
+     * 冲突时的 no-op 更新会返回 1 而不是 0，导致幂等判断失效。
+     * <p>
+     * create_time / update_time / del_flag 由 SQL 显式写入：
+     * 自定义 @Insert 不会触发 MyBatis-Plus 的自动填充。
+     *
+     * @return 1：插入成功（首次消费）；0：event_id 已存在（重复消息）
+     */
+    @Insert("INSERT IGNORE INTO t_link_access_logs " +
+            "(event_id, user, ip, browser, os, network, device, locale, gid, full_short_url, create_time, update_time, del_flag) " +
+            "VALUES (#{log.eventId}, #{log.user}, #{log.ip}, #{log.browser}, #{log.os}, " +
+            "#{log.network}, #{log.device}, #{log.locale}, #{log.gid}, #{log.fullShortUrl}, now(), now(), 0)")
+    int insertIgnore(@Param("log") LinkAccessLogsDO log);
 
     /**
      * 根据短链接获取指定日期内高频访问IP数据
