@@ -21,9 +21,9 @@ public class UserConfiguration {
      * 用户信息传递过滤器
      */
     @Bean
-    public FilterRegistrationBean<UserTransmitFilter> globalUserTransmitFilter(StringRedisTemplate stringRedisTemplate) {
+    public FilterRegistrationBean<UserTransmitFilter> globalUserTransmitFilter() {
         FilterRegistrationBean<UserTransmitFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new UserTransmitFilter(stringRedisTemplate));
+        registration.setFilter(new UserTransmitFilter());
         registration.addUrlPatterns("/*");   // 对所有请求路径生效
         registration.setOrder(0);            // 优先级最高，最早执行
         return registration;
