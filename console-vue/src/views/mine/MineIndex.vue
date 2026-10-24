@@ -153,7 +153,7 @@ const formRule = reactive({
   phone: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
     {
-      pattern: /^1[3|5|7|8|9]\d{9}$/,
+      pattern: /^1[3-9]\d{9}$/,
       message: '请输入正确的手机号',
       trigger: 'blur'
     },
@@ -172,7 +172,7 @@ const formRule = reactive({
     { required: false, message: '请输入密码', trigger: 'blur' },
     { min: 8, max: 15, message: '密码长度请在八位以上', trigger: 'blur' }
   ],
-  realNamee: [{ required: true, message: '请输姓名', trigger: 'blur' }]
+  realName: [{ required: true, message: '请输入姓名', trigger: 'blur' }]
 })
 const changeUserInfo = (formEl) => {
   if (!formEl) return

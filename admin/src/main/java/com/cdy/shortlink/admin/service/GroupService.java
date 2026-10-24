@@ -27,6 +27,12 @@ public interface GroupService extends IService<GroupDO> {
     void saveGroup(String username,String groupName);
 
     /**
+     * 校验分组是否属于当前登录用户，不属于时抛出无权限异常
+     * @param gid 分组标识
+     */
+    void checkGidOwner(String gid);
+
+    /**
      * 查询短连接分组
      * @return 分组列表
      */

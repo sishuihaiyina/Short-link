@@ -36,7 +36,8 @@ http.interceptors.response.use(
     (err) => {
         // 在请求错误时要做的事儿
         // 此处返回的数据是axios.catch(err)中接收的数据
-        if (err.response.status === 401) {
+        // 网络异常（后端未启动/超时）时 err.response 为空，避免这里再抛异常
+        if (err.response?.status === 401) {
             localStorage.removeItem('token')
             router.push('/login')
         }

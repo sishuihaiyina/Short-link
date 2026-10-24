@@ -80,28 +80,49 @@ public class RedisStreamConfiguration {
     /**
      * 幂等创建 Redis Stream 消费组。
      * <p>
-     * 使用 XGROUP CREATE key group $ MKSTREAM：
-     * - stream 不存在时会连带创建；
-     * - 组已存在时 Redis 返回 BUSYGROUP，属于正常情况，捕获后忽略即可。
+     * 先检查 Stream 和消费组是否已存在，存在则直接跳过。
+     * 不能每次启动都直接 XGROUP CREATE：组已存在时 Redis 返回 BUSYGROUP，
+     * Redisson 会把它当成命令异常打 ERROR 日志并重试，导致启动日志出现一串报错。
      * <p>
-     * 这样换环境、Redis 被 flush 后都不需要再手动建组。
+     * 并发创建时仍可能返回 BUSYGROUP，捕获后忽略即可。
      */
     private void initConsumerGroup() {
+        byte[] topicBytes = topic.getBytes(StandardCharsets.UTF_8);
         try (RedisConnection connection = redisConnectionFactory.getConnection()) {
-            connection.streamCommands().xGroupCreate(
-                    topic.getBytes(StandardCharsets.UTF_8),
-                    group,
-                    ReadOffset.latest(),
-                    true);
+            if (Boolean.TRUE.equals(connection.keyCommands().exists(topicBytes))
+                    && consumerGroupExists(connection, topicBytes)) {
+                log.info("Redis Stream 消费组已存在，跳过创建，topic：{}，group：{}", topic, group);
+                return;
+            }
+            // Stream 不存在时 MKSTREAM 会连带创建；组不存在时创建消费组
+            connection.streamCommands().xGroupCreate(topicBytes, group, ReadOffset.latest(), true);
             log.info("Redis Stream 消费组创建成功，topic：{}，group：{}", topic, group);
         } catch (Exception ex) {
-            // BUSYGROUP 表示组已存在（含并发创建），属于正常情况；
-            // 其它异常（如 Redis 连接失败）记录 warn，后续容器启动时会再次暴露
-            if (ex.getMessage() != null && ex.getMessage().contains("BUSYGROUP")) {
-                log.info("Redis Stream 消费组已存在，跳过创建，topic：{}，group：{}", topic, group);
+            if (isBusyGroup(ex)) {
+                log.info("Redis Stream 消费组已存在（并发创建），topic：{}，group：{}", topic, group);
             } else {
                 log.warn("Redis Stream 消费组创建失败，topic：{}，group：{}", topic, group, ex);
             }
         }
+    }
+
+    /**
+     * 判断消费组是否已存在（调用前需确保 Stream 已存在）
+     */
+    private boolean consumerGroupExists(RedisConnection connection, byte[] topicBytes) {
+        return connection.streamCommands().xInfoGroups(topicBytes).stream()
+                .anyMatch(info -> group.equals(info.groupName()));
+    }
+
+    /**
+     * 遍历异常链判断是否为 BUSYGROUP（Redisson 会包装成 CompletionException）
+     */
+    private boolean isBusyGroup(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().contains("BUSYGROUP")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

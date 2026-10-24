@@ -36,8 +36,8 @@ rules:
         # 分表策略
         tableStrategy:
           standard:
-            # 分片键：完整短链接（查今日数据时一定带着它）
-            shardingColumn: full_short_url
+            # 分片键：分组标识（必须与 t_link 一致，否则绑定表 JOIN 会路由到不同分片）
+            shardingColumn: gid
             # 分片算法，对应 rules[0].shardingAlgorithms
             shardingAlgorithmName: link_stats_today_hash_mod
     bindingTables:

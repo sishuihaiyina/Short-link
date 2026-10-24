@@ -1,6 +1,6 @@
 <template>
   <div class="login-page">
-    <h1 class="title">SaaS 短 链 接 平 台(马丁)</h1>
+    <h1 class="title">SaaS 短 链 接 平 台</h1>
     <div class="login-box">
       <!-- 登录 -->
       <div class="logon" :class="{ hidden: !isLogin }">
@@ -137,8 +137,8 @@ const loginFormRef1 = ref()
 const loginFormRef2 = ref()
 const router = useRouter()
 const loginForm = reactive({
-  username: 'admin',
-  password: 'admin123456',
+  username: '',
+  password: '',
 })
 const addForm = reactive({
   username: '',
@@ -152,13 +152,13 @@ const addFormRule = reactive({
   phone: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
     {
-      pattern: /^1[3|5|7|8|9]\d{9}$/,
+      pattern: /^1[3-9]\d{9}$/,
       message: '请输入正确的手机号',
       trigger: 'blur'
     },
     { min: 11, max: 11, message: '手机号必须是11位', trigger: 'blur' }
   ],
-  username: [{ required: true, message: '请输入您的真实姓名', trigger: 'blur' }],
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 8, max: 15, message: '密码长度请在八位以上', trigger: 'blur' }
@@ -171,12 +171,12 @@ const addFormRule = reactive({
       trigger: 'blur'
     }
   ],
-  realNamee: [
-    { required: true, message: '请输姓名', trigger: 'blur' },
+  realName: [
+    { required: true, message: '请输入姓名', trigger: 'blur' },
   ]
 })
 const loginFormRule = reactive({
-  username: [{ required: true, message: '请输入您的真实姓名', trigger: 'blur' }],
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 8, max: 15, message: '密码长度请在八位以上', trigger: 'blur' }
@@ -186,36 +186,36 @@ const loginFormRule = reactive({
 const addUser = (formEl) => {
   if (!formEl) return
   formEl.validate(async (valid) => {
-    if (valid) {
-      // 检测用户名是否已经存在
+    if (!valid) return false
+    try {
+      // 检测用户名是否已经存在，后端返回的 data 为 true 表示用户名可用
       const res1 = await API.user.hasUsername({ username: addForm.username })
-      if (res1.data.success !== false) {
-        // 注册
-        const res2 = await API.user.addUser(addForm)
-        // console.log(res2)
-        if (res2.data.success === false) {
-          ElMessage.warning(res2.data.message)
-        } else {
-          const res3 = await API.user.login({ username: addForm.username, password: addForm.password })
-          const token = res3?.data?.data?.token
-          // 将username和token保存到cookies中和localStorage中
-          if (token) {
-            setToken(token)
-            setUsername(addForm.username)
-            localStorage.setItem('token', token)
-            localStorage.setItem('username', addForm.username)
-          }
-          ElMessage.success('注册登录成功！')
-          router.push('/home')
-        }
-      } else {
+      if (res1?.data?.data === false) {
         ElMessage.warning('用户名已存在！')
+        return
       }
-    } else {
-      return false
+      // 注册
+      const res2 = await API.user.addUser(addForm)
+      if (res2?.data?.code !== '0') {
+        // 例如手机号已存在、用户记录已存在等，直接展示后端返回的原因
+        ElMessage.warning(res2?.data?.message || '注册失败')
+        return
+      }
+      const res3 = await API.user.login({ username: addForm.username, password: addForm.password })
+      const token = res3?.data?.data?.token
+      // 将username和token保存到cookies中和localStorage中
+      if (token) {
+        setToken(token)
+        setUsername(addForm.username)
+        localStorage.setItem('token', token)
+        localStorage.setItem('username', addForm.username)
+      }
+      ElMessage.success('注册登录成功！')
+      router.push('/home')
+    } catch (e) {
+      ElMessage.error(e?.response?.data?.message || '注册失败，请稍后重试')
     }
   })
-
 }
 // 公众号验证码
 const isWC = ref(false)
@@ -264,7 +264,8 @@ const verificationLogin = (formEl) => {
 const login = (formEl) => {
   if (!formEl) return
   formEl.validate(async (valid) => {
-    if (valid) {
+    if (!valid) return false
+    try {
       // 当域名为下面这两个时，弹出公众号弹框
       // let domain = window.location.host
       // if (domain === 'shortlink.magestack.cn' || domain === 'shortlink.nageoffer.com') {
@@ -272,7 +273,7 @@ const login = (formEl) => {
       //   return
       // }
       const res1 = await API.user.login(loginForm)
-      if (res1.data.code === '0') {
+      if (res1?.data?.code === '0') {
         const token = res1?.data?.data?.token
         // 将username和token保存到cookies中和localStorage中
         if (token) {
@@ -283,7 +284,7 @@ const login = (formEl) => {
         }
         ElMessage.success('登录成功！')
         router.push('/home')
-      } else if (res1.data.message === '用户已登录') {
+      } else if (res1?.data?.message === '用户已登录') {
         // 如果已经登录了，判断一下浏览器保存的登录信息是不是再次登录的信息，如果是就正常登录
         const cookiesUsername = getUsername()
         if (cookiesUsername === loginForm.username) {
@@ -292,15 +293,17 @@ const login = (formEl) => {
         } else {
           ElMessage.warning('用户已在别处登录，请勿重复登录！')
         }
-      } else if (res1.data.message === '用户不存在') {
-        ElMessage.error('请输入正确的账号密码!')
+      } else {
+        // B002000 为用户名或密码不匹配，其余错误直接展示后端返回的信息
+        const message = res1?.data?.code === 'B002000'
+          ? '用户名或密码错误'
+          : res1?.data?.message
+        ElMessage.error(message || '登录失败')
       }
-    } else {
-      return false
+    } catch (e) {
+      ElMessage.error(e?.response?.data?.message || '登录失败，请检查后端服务是否已启动')
     }
   })
-
-
 }
 
 const loading = ref(false)

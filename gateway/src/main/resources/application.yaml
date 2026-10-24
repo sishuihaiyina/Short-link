@@ -25,9 +25,6 @@ spring:
                   - /api/short-link/admin/v1/user/login
                   - /api/short-link/admin/v1/user/has-username
 
-        - id: short-link-project
-          uri: lb://short-link-project/api/short-link/**
-          predicates:
-            - Path=/api/short-link/**
-          filters:
-            - name: TokenValidate
+        # 注意：短链接中台（project）的 /api/short-link/** 属于内部接口，
+        # 只允许 admin 通过 Feign 直接调用，不能通过网关暴露给终端用户，
+        # 否则任何登录用户都能绕过 admin 的归属校验直接操作他人的短链接。

@@ -139,7 +139,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         }
 
         // 允许用户在不同端登录，如手机和电脑
-        Map<Object, Object> hasLoginMap = stringRedisTemplate.opsForHash().entries("login_" + userLoginReqDTO.getUsername());
+        Map<Object, Object> hasLoginMap = stringRedisTemplate.opsForHash().entries(RedisCacheConstant.LOGIN_USER_KEY + userLoginReqDTO.getUsername());
         if (CollUtil.isNotEmpty(hasLoginMap)) {
             // 返回已登录的 token
             String token = hasLoginMap.keySet().stream()
@@ -162,8 +162,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
          * 3.并发问题：两个请求同时登录，都查到 hasLogin 为 false，然后都执行 put，后写入的会覆盖先写入的，导致先登录的 token 失效。
          * 可以使用 setIfAbsent 或分布式锁来保证原子性
          **/
-        stringRedisTemplate.opsForHash().put("login_" + userLoginReqDTO.getUsername(), uuid, JSON.toJSONString(userDO));
-        stringRedisTemplate.expire("login_" + userLoginReqDTO.getUsername(), 30L, TimeUnit.MINUTES);
+        stringRedisTemplate.opsForHash().put(RedisCacheConstant.LOGIN_USER_KEY + userLoginReqDTO.getUsername(), uuid, JSON.toJSONString(userDO));
+        stringRedisTemplate.expire(RedisCacheConstant.LOGIN_USER_KEY + userLoginReqDTO.getUsername(), 30L, TimeUnit.MINUTES);
 
         return new UserLoginRespDTO(uuid);
     }
@@ -178,7 +178,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         /** TODO 滑动续期登录状态检查
          * 注意：这里没有刷新过期时间，所以登录态是固定的 30 分钟。如果希望滑动续期，应该在这里判断有效后，重新设置 key 的过期时间
          */
-        return stringRedisTemplate.opsForHash().get("login_" + username, token) != null;
+        return stringRedisTemplate.opsForHash().get(RedisCacheConstant.LOGIN_USER_KEY + username, token) != null;
     }
 
     /**
@@ -189,7 +189,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
     @Override
     public void logout(String username, String token) {
         if (checkLogin(username, token)) {
-            stringRedisTemplate.delete("login_" + username);
+            stringRedisTemplate.delete(RedisCacheConstant.LOGIN_USER_KEY + username);
             return;
         }
         throw new ClientException(UserErrorCodeEnum.USER_NOT_LOGIN);

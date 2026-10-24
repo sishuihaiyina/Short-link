@@ -1,6 +1,10 @@
 package com.cdy.shortlink.admin.controller;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
+import com.cdy.shortlink.admin.common.biz.user.UserContext;
+import com.cdy.shortlink.admin.common.convention.errorcode.BaseErrorCode;
+import com.cdy.shortlink.admin.common.convention.exception.ClientException;
 import com.cdy.shortlink.admin.common.convention.result.Result;
 import com.cdy.shortlink.admin.common.convention.result.Results;
 import com.cdy.shortlink.admin.dto.req.UserLoginReqDTO;
@@ -27,6 +31,7 @@ public class UserController {
      */
     @GetMapping("/api/short-link/admin/v1/user/{username}")
     public Result<UserRespDTO> getUserByUsername(@PathVariable("username") String username) {
+        checkSelf(username);
         return Results.success(userService.getUserByUsername(username));
     }
 
@@ -35,6 +40,7 @@ public class UserController {
      */
     @GetMapping("/api/short-link/admin/v1/actual/user/{username}")
     public Result<UserActualRespDTO> getActualUserByUsername(@PathVariable("username") String username) {
+        checkSelf(username);
         return Results.success(BeanUtil.toBean(userService.getUserByUsername(username), UserActualRespDTO.class));
     }
 
@@ -60,6 +66,12 @@ public class UserController {
      */
     @PutMapping("/api/short-link/admin/v1/user")
     public Result<Void> update(@RequestBody UserUpdateReqDTO userUpdateReqDTO) {
+        String currentUsername = UserContext.getUsername();
+        if (StrUtil.isBlank(currentUsername)) {
+            throw new ClientException(BaseErrorCode.NO_PERMISSION_ERROR);
+        }
+        // 忽略请求体中的 username，只能修改当前登录用户自己的信息
+        userUpdateReqDTO.setUsername(currentUsername);
         userService.update(userUpdateReqDTO);
         return Results.success();
     }
@@ -85,8 +97,18 @@ public class UserController {
      */
     @DeleteMapping("/api/short-link/admin/v1/user/logout")
     public Result<Void> logout(@RequestParam("username") String username, @RequestParam("token") String token) {
+        checkSelf(username);
         userService.logout(username, token);
         return Results.success();
     }
 
+    /**
+     * 校验目标用户名是否为当前登录用户，防止横向越权访问他人信息
+     */
+    private void checkSelf(String username) {
+        String currentUsername = UserContext.getUsername();
+        if (StrUtil.isBlank(currentUsername) || !currentUsername.equals(username)) {
+            throw new ClientException(BaseErrorCode.NO_PERMISSION_ERROR);
+        }
+    }
 }

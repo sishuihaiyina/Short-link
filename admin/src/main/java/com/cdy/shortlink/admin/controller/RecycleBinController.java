@@ -9,6 +9,7 @@ import com.cdy.shortlink.admin.dto.req.RecycleBinSaveReqDTO;
 import com.cdy.shortlink.admin.remote.ShortLinkActualRemoteService;
 import com.cdy.shortlink.admin.remote.dto.req.ShortLinkRecycleBinPageReqDTO;
 import com.cdy.shortlink.admin.remote.dto.resp.ShortLinkPageRespDTO;
+import com.cdy.shortlink.admin.service.GroupService;
 import com.cdy.shortlink.admin.service.RecycleBinService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,12 +26,14 @@ public class RecycleBinController {
 
     private final RecycleBinService recycleBinService;
     private final ShortLinkActualRemoteService shortLinkActualRemoteService;
+    private final GroupService groupService;
 
     /**
      * 回收站保存
      */
     @PostMapping("/api/short-link/admin/v1/recycle-bin/save")
     public Result<Void> saveRecycleBin(@RequestBody RecycleBinSaveReqDTO recycleBinSaveReqDTO) {
+        groupService.checkGidOwner(recycleBinSaveReqDTO.getGid());
         shortLinkActualRemoteService.saveRecycleBin(recycleBinSaveReqDTO);
         return Results.success();
     }
@@ -48,6 +51,7 @@ public class RecycleBinController {
      */
     @PostMapping("/api/short-link/admin/v1/recycle-bin/recover")
     public Result<Void> recoverRecycleBin(@RequestBody RecycleBinRecoverReqDTO recycleBinRecoverReqDTO) {
+        groupService.checkGidOwner(recycleBinRecoverReqDTO.getGid());
         shortLinkActualRemoteService.recoverRecycleBin(recycleBinRecoverReqDTO);
         return Results.success();
     }
@@ -57,6 +61,7 @@ public class RecycleBinController {
      */
     @PostMapping("/api/short-link/admin/v1/recycle-bin/remove")
     public Result<Void> removeRecycleBin(@RequestBody RecycleBinRemoveReqDTO recycleBinRemoveReqDTO) {
+        groupService.checkGidOwner(recycleBinRemoveReqDTO.getGid());
         shortLinkActualRemoteService.removeRecycleBin(recycleBinRemoveReqDTO);
         return Results.success();
     }

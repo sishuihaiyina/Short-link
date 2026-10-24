@@ -2,12 +2,14 @@ package com.cdy.shortlink.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cdy.shortlink.admin.common.biz.user.UserContext;
 import com.cdy.shortlink.admin.common.constant.RedisCacheConstant;
+import com.cdy.shortlink.admin.common.convention.errorcode.BaseErrorCode;
 import com.cdy.shortlink.admin.common.convention.exception.ClientException;
 import com.cdy.shortlink.admin.common.convention.result.Result;
 import com.cdy.shortlink.admin.dao.entity.GroupDO;
@@ -86,6 +88,25 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
             baseMapper.insert(groupDO);
         } finally {
             lock.unlock();
+        }
+    }
+
+    /**
+     * 校验分组是否属于当前登录用户，不属于时抛出无权限异常
+     * @param gid 分组标识
+     */
+    @Override
+    public void checkGidOwner(String gid) {
+        String username = UserContext.getUsername();
+        if (StrUtil.isBlank(gid) || StrUtil.isBlank(username)) {
+            throw new ClientException(BaseErrorCode.NO_PERMISSION_ERROR);
+        }
+        Long count = baseMapper.selectCount(Wrappers.lambdaQuery(GroupDO.class)
+                .eq(GroupDO::getGid, gid)
+                .eq(GroupDO::getUsername, username)
+                .eq(GroupDO::getDelFlag, 0));
+        if (count == null || count == 0) {
+            throw new ClientException(BaseErrorCode.NO_PERMISSION_ERROR);
         }
     }
 

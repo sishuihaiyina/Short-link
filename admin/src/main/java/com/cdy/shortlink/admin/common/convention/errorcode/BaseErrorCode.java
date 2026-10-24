@@ -29,6 +29,9 @@ public enum BaseErrorCode implements IErrorCode {
     // ========== 二级宏观错误码 系统请求操作频繁 ==========
     FLOW_LIMIT_ERROR("A000300", "当前系统繁忙，请稍后再试"),
 
+    // ========== 二级宏观错误码 权限校验失败 ==========
+    NO_PERMISSION_ERROR("A000400", "无权访问该资源"),
+
     // ========== 一级宏观错误码 调用第三方服务出错 ==========
     REMOTE_ERROR("C000001", "调用第三方服务出错");
 
