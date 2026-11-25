@@ -6,7 +6,10 @@ import cn.hutool.core.util.StrUtil;
 import com.cdy.shortlink.project.common.constant.ShortLinkConstant;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -135,16 +138,27 @@ public class LinkUtil {
         if (StrUtil.isBlank(ip)) {
             return true;
         }
-        if (isValidIpv6(ip)) {
-            String lower = ip.toLowerCase();
-            return "::1".equals(lower)
-                    || "::".equals(lower)
-                    || lower.startsWith("fe80")
-                    || lower.startsWith("fc")
-                    || lower.startsWith("fd");
-        }
-        if (!isValidIpv4(ip)) {
+        if (!isValidIp(ip)) {
+            // 解析不了的地址一律按不安全处理
             return true;
+        }
+        if (isValidIpv6(ip)) {
+            // IPv6 形态太多（::1、0:0:0:0:0:0:0:1、::ffff:127.0.0.1），交给 JDK 判断，
+            // 再补上 JDK 不覆盖的唯一本地地址段 fc00::/7
+            String lower = ip.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("fc") || lower.startsWith("fd")) {
+                return true;
+            }
+            try {
+                InetAddress address = InetAddress.getByName(ip);
+                return address.isAnyLocalAddress()
+                        || address.isLoopbackAddress()
+                        || address.isLinkLocalAddress()
+                        || address.isSiteLocalAddress()
+                        || address.isMulticastAddress();
+            } catch (UnknownHostException ex) {
+                return true;
+            }
         }
         if ("0.0.0.0".equals(ip)
                 || ip.startsWith("10.")

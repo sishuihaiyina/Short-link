@@ -119,14 +119,15 @@ const truncateText = (text, maxLength) => {
   }
 
   .el-main {
-    background-color: #e8e8e8;
+    background-color: var(--sl-bg);
   }
 }
 
 .header {
-  color: rgba(0,0,0,.85);
-  background-color: #252b30;
-  padding: 0 0 0 20px;
+  color: var(--sl-text);
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--sl-border);
+  padding: 0 20px;
   height: 100%;
   display: flex;
   align-items: center;
@@ -142,7 +143,7 @@ const truncateText = (text, maxLength) => {
 
 .content-box {
   height: calc(100vh - 50px);
-  background-color: white;
+  background-color: var(--sl-bg);
 }
 
 :deep(.el-tooltip__trigger:focus-visible) {
@@ -150,17 +151,15 @@ const truncateText = (text, maxLength) => {
 }
 
 .logo {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
-  color: #e8e8e8;
-  font-family: Helvetica, Tahoma, Arial, 'PingFang SC', 'Hiragino Sans GB', 'Heiti SC',
-    'Microsoft YaHei', 'WenQuanYi Micro Hei';
-  // font-family: 'Helvetica Neue', Helvetica, STHeiTi, Arial, sans-serif;
+  color: var(--sl-text);
+  letter-spacing: 0.2px;
   cursor: pointer;
 }
 
 .logo:hover {
-  color: #fff;
+  color: var(--sl-primary);
 }
 
 .link-span {
@@ -180,16 +179,19 @@ const truncateText = (text, maxLength) => {
 }
 
 .name-span {
-  color: #fff;
-  opacity: .6;
-  margin-right: 30px;
-  font-size: 12px;
-  font-family: 'Helvetica Neue', Helvetica, STHeiTi, Arial, sans-serif;
+  color: var(--sl-text-secondary);
+  margin-right: 0;
+  font-size: 15px;
+  font-weight: 500;
   cursor: pointer;
   text-decoration: none;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.name-span:hover {
+  color: var(--sl-primary);
 }
 
 .avatar {

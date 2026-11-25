@@ -14,11 +14,6 @@ spring:
       host: 127.0.0.1
       port: 6379
       password: 123456
-      channel-topic:
-        short-link-stats: 'short_link:stats-stream'
-        short-link-stats-group: 'short_link:stats-stream:only-group'
-        # 超过最大重试次数的统计消息转入死信队列
-        short-link-stats-dlq: 'short_link:stats-stream:dlq'
   mvc:
     view:
       prefix: /templates/
@@ -28,20 +23,25 @@ spring:
       discovery:
         server-addr: 127.0.0.1:8848
 
+# RocketMQ：统计消息的投递与消费
+rocketmq:
+  name-server: 127.0.0.1:9876
+  producer:
+    group: short-link-stats-producer-group
+    send-message-timeout: 3000
+
 short-link:
   domain:
     default: 127.0.0.1:8001
+  mq:
+    stats:
+      # 统计消息 topic；正常投递和延迟重投共用同一个 topic
+      topic: short-link-stats-topic
+      # 消费组：重试次数耗尽后，消息进入 %DLQ%short-link-stats-consumer-group
+      consumer-group: short-link-stats-consumer-group
+      # 延迟等级：1=1s 2=5s 3=10s 4=30s 5=1m，对应原来 Redisson 延迟队列的 5 秒
+      delay-level: 2
   stats:
-    # pending 消息恢复任务参数
-    recovery:
-      # pending 至少空闲多久才重新投递
-      min-idle-ms: 60000
-      # 单条消息最大重试次数，超过后转入死信队列
-      max-retries: 5
-      # 每轮扫描的 pending 数量
-      batch-size: 100
-      # 恢复任务执行间隔
-      fixed-delay-ms: 30000
     locale:
       amap-key: 58a604e754fddfa950323d69c7773c10
 

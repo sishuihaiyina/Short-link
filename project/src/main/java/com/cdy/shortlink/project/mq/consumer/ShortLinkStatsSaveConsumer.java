@@ -2,70 +2,80 @@ package com.cdy.shortlink.project.mq.consumer;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.TypeReference;
 import com.cdy.shortlink.project.dto.biz.ShortLinkStatsRecordDTO;
 import com.cdy.shortlink.project.service.ShortLinkStatsSaveService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.connection.stream.MapRecord;
-import org.springframework.data.redis.connection.stream.RecordId;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.stream.StreamListener;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
+import org.apache.rocketmq.spring.annotation.MessageModel;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
+import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
 /**
- * 短链接监控状态保存消息队列消费者
+ * 短链接监控状态保存消息队列消费者（RocketMQ 版）
+ * <p>
+ * 与原来的 Redis Stream 版本相比，三件事交给 broker 处理，不用自己写：
+ * <ul>
+ *     <li>消费失败重试：抛异常即可，RocketMQ 按退避策略重新投递；</li>
+ *     <li>超次数转死信：重试 {@code maxReconsumeTimes} 次后自动进入
+ *         {@code %DLQ%short-link-stats-consumer-group}；</li>
+ *     <li>多实例分担：同一个消费组自动做负载均衡。</li>
+ * </ul>
+ * 幂等仍由 {@code t_link_access_logs.event_id} 唯一索引兜底，重复投递不会重复计数。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class ShortLinkStatsSaveConsumer implements StreamListener<String, MapRecord<String, String, String>> {
+@RocketMQMessageListener(
+        topic = "${short-link.mq.stats.topic}",
+        consumerGroup = "${short-link.mq.stats.consumer-group}",
+        consumeMode = ConsumeMode.CONCURRENTLY,
+        messageModel = MessageModel.CLUSTERING,
+        consumeThreadNumber = 4,
+        maxReconsumeTimes = 5
+)
+public class ShortLinkStatsSaveConsumer implements RocketMQListener<String> {
+
+    private static final TypeReference<Map<String, String>> MESSAGE_TYPE = new TypeReference<Map<String, String>>() {
+    };
 
     private final ShortLinkStatsSaveService shortLinkStatsSaveService;
-    private final StringRedisTemplate stringRedisTemplate;
-
-    @Value("${spring.data.redis.channel-topic.short-link-stats-group}")
-    private String group;
 
     @Override
-    public void onMessage(MapRecord<String, String, String> message) {
-        String stream = message.getStream();
-        RecordId id = message.getId();
-        Map<String, String> producerMap = message.getValue();
-
-        // 无法处理的消息直接 ACK + 删除，避免一直占用 pending
-        if (producerMap == null || producerMap.isEmpty() || StrUtil.isBlank(producerMap.get("fullShortUrl"))) {
-            log.warn("短链接统计消息缺少 fullShortUrl，直接丢弃，id：{}", id);
-            ackAndDelete(stream, id);
+    public void onMessage(String message) {
+        Map<String, String> producerMap;
+        try {
+            producerMap = JSON.parseObject(message, MESSAGE_TYPE);
+        } catch (Exception ex) {
+            // 格式都不对的消息重试多少次都没用，直接丢弃
+            log.error("短链接统计消息格式错误，直接丢弃，message：{}", message, ex);
             return;
         }
-
-        try {
-            String fullShortUrl = producerMap.get("fullShortUrl");
-            String gid = producerMap.get("gid");
-            ShortLinkStatsRecordDTO statsRecord = JSON.parseObject(
-                    producerMap.get("statsRecord"), ShortLinkStatsRecordDTO.class);
-            if (statsRecord == null) {
-                log.warn("短链接统计消息内容为空，直接丢弃，id：{}", id);
-                ackAndDelete(stream, id);
-                return;
-            }
-            // 落库成功后 ACK；失败不 ACK，消息留在 PEL，由恢复任务 XCLAIM 重试
-            shortLinkStatsSaveService.saveShortLinkStats(fullShortUrl, gid, statsRecord);
-            ackAndDelete(stream, id);
-        } catch (Exception ex) {
-            // 不 ACK 也不删除：消息保留在 PEL，等待 ShortLinkStatsPendingRecoveryTask 重试
-            log.error("短链接统计消息处理失败，保留在 PEL 等待重试，id：{}", id, ex);
+        if (producerMap == null || producerMap.isEmpty()) {
+            log.warn("短链接统计消息为空，直接丢弃");
+            return;
         }
-    }
-
-    /**
-     * 先 ACK 再从 stream 中删除，避免已消费消息无限堆积
-     */
-    private void ackAndDelete(String stream, RecordId id) {
-        stringRedisTemplate.opsForStream().acknowledge(stream, group, id.getValue());
-        stringRedisTemplate.opsForStream().delete(stream, id.getValue());
+        String fullShortUrl = producerMap.get("fullShortUrl");
+        if (StrUtil.isBlank(fullShortUrl)) {
+            log.warn("短链接统计消息缺少 fullShortUrl，直接丢弃，message：{}", message);
+            return;
+        }
+        ShortLinkStatsRecordDTO statsRecord;
+        try {
+            statsRecord = JSON.parseObject(producerMap.get("statsRecord"), ShortLinkStatsRecordDTO.class);
+        } catch (Exception ex) {
+            log.error("短链接统计消息内容解析失败，直接丢弃，fullShortUrl：{}", fullShortUrl, ex);
+            return;
+        }
+        if (statsRecord == null) {
+            log.warn("短链接统计消息内容为空，直接丢弃，fullShortUrl：{}", fullShortUrl);
+            return;
+        }
+        // 这里不吞异常：落库失败就抛出去，交给 RocketMQ 重投/进死信队列
+        shortLinkStatsSaveService.saveShortLinkStats(fullShortUrl, producerMap.get("gid"), statsRecord);
     }
 }

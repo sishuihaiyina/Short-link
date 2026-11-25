@@ -7,6 +7,8 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import './style.scss'
+// 主题样式放在最后，覆盖上面的默认配色
+import './assets/theme.scss'
 import API from '@/api/index'
 import store from './store'
 // import ViewUIPlus from 'view-ui-plus'

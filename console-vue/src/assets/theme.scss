@@ -1,0 +1,216 @@
+/**
+ * 全局主题 —— 参考 url.asia 的简洁风格：
+ * 白底 + 浅灰分区、单一蓝色强调色、细边框、大圆角、弱化阴影。
+ * 这里只覆盖视觉变量与组件外观，不改任何交互逻辑。
+ */
+
+:root {
+  /* 设计 token */
+  --sl-bg: #f5f6f8;
+  --sl-surface: #ffffff;
+  --sl-border: #e8eaee;
+  --sl-border-light: #f0f2f5;
+  --sl-text: #16181d;
+  --sl-text-secondary: #4b5563;
+  --sl-text-muted: #8a919e;
+  --sl-primary: #2563eb;
+  --sl-primary-soft: #eef2ff;
+  --sl-radius-sm: 8px;
+  --sl-radius: 12px;
+  --sl-radius-lg: 16px;
+  --sl-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --sl-shadow: 0 8px 24px rgba(16, 24, 40, 0.06);
+
+  /* Element Plus 变量覆盖 */
+  --el-color-primary: #2563eb;
+  --el-color-primary-light-3: #5b8def;
+  --el-color-primary-light-5: #8fb3f5;
+  --el-color-primary-light-7: #c3d6fa;
+  --el-color-primary-light-8: #d9e4fc;
+  --el-color-primary-light-9: #eef2ff;
+  --el-color-primary-dark-2: #1d4ed8;
+
+  --el-text-color-primary: #16181d;
+  --el-text-color-regular: #4b5563;
+  --el-text-color-secondary: #8a919e;
+  --el-text-color-placeholder: #b3b9c4;
+
+  --el-border-color: #e8eaee;
+  --el-border-color-light: #f0f2f5;
+  --el-border-color-lighter: #f5f6f8;
+  --el-fill-color-light: #f5f6f8;
+  --el-fill-color-blank: #ffffff;
+  --el-bg-color: #ffffff;
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+
+  --el-table-header-bg-color: #fafbfc;
+  --el-table-border-color: #f0f2f5;
+  --el-table-row-hover-bg-color: #f8faff;
+
+  --el-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+
+body {
+  color: var(--sl-text);
+  background-color: var(--sl-bg);
+  font-family: var(--el-font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 按钮 ---------- */
+.el-button {
+  height: 36px;
+  padding: 0 16px;
+  font-weight: 500;
+  border-radius: var(--sl-radius-sm);
+}
+
+.el-button--small {
+  height: 30px;
+}
+
+.el-button--large {
+  height: 42px;
+}
+
+.el-button--primary {
+  box-shadow: none;
+}
+
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background-color: var(--el-color-primary-dark-2);
+  border-color: var(--el-color-primary-dark-2);
+}
+
+.el-button.is-link {
+  height: auto;
+  padding: 0;
+  font-weight: 500;
+}
+
+/* ---------- 输入框 ---------- */
+.el-input__wrapper,
+.el-textarea__inner {
+  border-radius: var(--sl-radius-sm);
+  background-color: var(--sl-surface);
+  box-shadow: 0 0 0 1px var(--sl-border) inset;
+}
+
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px #cfd5de inset;
+}
+
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--sl-primary) inset;
+}
+
+.el-input-group__prepend,
+.el-input-group__append {
+  background-color: #f7f8fa;
+  color: var(--sl-text-muted);
+  box-shadow: 0 0 0 1px var(--sl-border) inset;
+  border: none;
+}
+
+.el-select__wrapper {
+  border-radius: var(--sl-radius-sm);
+  box-shadow: 0 0 0 1px var(--sl-border) inset;
+}
+
+/* ---------- 表格 ---------- */
+.el-table {
+  font-size: 13px;
+  --el-table-header-text-color: var(--sl-text-muted);
+}
+
+.el-table th.el-table__cell {
+  font-weight: 500;
+  background-color: #fafbfc;
+}
+
+.el-table td.el-table__cell,
+.el-table th.el-table__cell.is-leaf {
+  border-bottom: 1px solid var(--sl-border-light);
+}
+
+.el-table__inner-wrapper::before {
+  display: none;
+}
+
+/* ---------- 弹窗 ---------- */
+.el-dialog {
+  border-radius: var(--sl-radius-lg);
+  box-shadow: var(--sl-shadow);
+}
+
+.el-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sl-text);
+}
+
+.el-dialog__header {
+  padding-bottom: 16px;
+}
+
+/* ---------- 下拉 / 气泡 / 提示 ---------- */
+.el-dropdown-menu {
+  border-radius: 10px;
+  padding: 6px;
+}
+
+.el-dropdown-menu__item {
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.el-popper.is-light {
+  border-radius: var(--sl-radius);
+  border-color: var(--sl-border);
+  box-shadow: var(--sl-shadow);
+}
+
+.el-message {
+  border-radius: 10px;
+}
+
+.el-message-box {
+  border-radius: var(--sl-radius);
+}
+
+/* ---------- 分页 ---------- */
+.el-pagination {
+  font-weight: 400;
+  --el-pagination-bg-color: transparent;
+}
+
+.el-pagination button,
+.el-pagination .el-pager li {
+  border-radius: 6px;
+}
+
+.el-pagination .el-pager li.is-active {
+  background-color: var(--sl-primary-soft);
+  color: var(--sl-primary);
+  font-weight: 600;
+}
+
+/* ---------- 标签页 ---------- */
+.el-tabs__item {
+  font-size: 14px;
+}
+
+.el-tabs__item.is-active {
+  font-weight: 600;
+}
+
+/* ---------- 复选框 ---------- */
+.el-checkbox__label {
+  font-size: 13px;
+  color: var(--sl-text-secondary);
+}

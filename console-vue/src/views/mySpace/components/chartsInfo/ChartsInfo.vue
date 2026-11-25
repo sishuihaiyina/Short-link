@@ -52,7 +52,7 @@
                 <!-- 表格 -->
                 <div v-show="!isLine" style="padding: 20px">
                   <el-table :data="visitsData" border style="width: 100%; height: 210px; overflow: scroll"
-                    :header-cell-style="{ background: '#eef1f6', color: '#606266' }">
+                    :header-cell-style="{ background: '#fafbfc', color: '#8a919e', fontWeight: '500' }">
                     <el-table-column prop="date" label="时间" width="160" />
                     <el-table-column prop="pv" label="访问次数" width="160" />
                     <el-table-column prop="uv" label="访问人数" width="160" />
@@ -475,7 +475,7 @@ const initChinaMap = () => {
       orient: 'horizontal',
       inRange: {
         // 最小值到最大值的颜色
-        color: ['#e0ffff', '#006edd'],
+        color: ['#eef4ff', '#2563eb'],
         symbolSize: [30, 100]
       }
     },
@@ -486,7 +486,7 @@ const initChinaMap = () => {
         // 鼠标移入后的样式
         emphasis: {
           // 鼠标移入后的颜色
-          areaColor: '#78dffc'
+          areaColor: '#dbeafe'
         }
       },
       data: chinaMapData.value
@@ -731,7 +731,7 @@ const initWorldMap = () => {
       orient: 'horizontal',
       inRange: {
         // 最小值到最大值的颜色
-        color: ['#e0ffff', '#006edd'],
+        color: ['#eef4ff', '#2563eb'],
         symbolSize: [30, 100]
       }
     },
@@ -743,7 +743,7 @@ const initWorldMap = () => {
         // 鼠标移入后的样式
         emphasis: {
           // 鼠标移入后的颜色
-          areaColor: '#78dffc'
+          areaColor: '#dbeafe'
         }
       },
       data: worldMapData.value
@@ -956,9 +956,9 @@ watch(
     }
 
     span:nth-child(1) {
-      color: #3464e0;
+      color: var(--sl-primary);
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 600;
     }
 
     .key-value {

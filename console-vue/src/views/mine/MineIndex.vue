@@ -199,7 +199,7 @@ const changeUserInfo = (formEl) => {
   position: relative;
   flex: 1;
   padding: 15px;
-  background-color: rgb(238, 240, 245);
+  background-color: var(--sl-bg);
   height: calc(100vh - 50px);
   display: flex;
   flex-direction: column;
@@ -207,7 +207,10 @@ const changeUserInfo = (formEl) => {
 
 .content-box {
   flex: 1;
-  background-color: #ffffff;
+  background-color: var(--sl-surface);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--sl-radius);
+  box-shadow: var(--sl-shadow-sm);
   padding: 20px;
 }
 
@@ -237,11 +240,11 @@ const changeUserInfo = (formEl) => {
     align-items: center;
     // justify-content: center;
     padding-left: 15px;
-    background-color: rgb(235, 239, 250);
+    background-color: var(--sl-primary-soft);
     font-family:
       PingFangSC-Semibold,
       PingFang SC;
-    color: #3464e0;
+    color: var(--sl-primary);
     font-weight: 600;
   }
 }

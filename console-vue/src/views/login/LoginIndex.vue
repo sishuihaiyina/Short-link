@@ -1,10 +1,12 @@
 <template>
   <div class="login-page">
-    <h1 class="title">SaaS 短 链 接 平 台</h1>
+    <div ref="vantaRef" class="vanta"></div>
+    <div class="login-brand">短链接生成平台</div>
     <div class="login-box">
       <!-- 登录 -->
       <div class="logon" :class="{ hidden: !isLogin }">
-        <h2>用户登录</h2>
+        <h2>登录</h2>
+        <p class="login-sub">输入用户名和密码进入控制台</p>
         <el-form ref="loginFormRef1" :model="loginForm" label-width="50px" :rules="loginFormRule">
           <div class="form-container1">
             <el-form-item prop="phone">
@@ -26,7 +28,7 @@
                 style="color: #a0a0a0; margin: 0 0 0px 0">记住密码</el-checkbox>
             </div>
             <div>
-              <el-button :loading="loading" @keyup.enter="login" type="primary" plain
+              <el-button :loading="loading" @keyup.enter="login" type="primary"
                 @click="login(loginFormRef1)">登录</el-button>
             </div>
           </div>
@@ -34,7 +36,8 @@
       </div>
       <!-- 注册 -->
       <div class="register" :class="{ hidden: isLogin }">
-        <h2>用户注册</h2>
+        <h2>注册</h2>
+        <p class="login-sub">注册后即可创建和管理短链接</p>
         <el-form ref="loginFormRef2" :model="addForm" label-width="50px" class="form-container" width="width"
           :rules="addFormRule">
           <el-form-item prop="username">
@@ -81,26 +84,20 @@
           <div class="btn-gourp">
             <div></div>
             <div>
-              <el-button :loading="loading" @keyup.enter="login" type="primary" plain
+              <el-button :loading="loading" @keyup.enter="login" type="primary"
                 @click="addUser(loginFormRef2)">注册</el-button>
             </div>
           </div>
         </el-form>
       </div>
-      <!-- 左右移动的切换按钮 -->
+      <!-- 登录 / 注册切换 -->
       <div class="move" ref="moveRef">
-        <span style="font-size: 18px; margin-bottom: 25px; color: rgb(225, 238, 250)">{{
-          !isLogin ? '已有账号？' : '还没有账号？'
-        }}</span>
-        <span style="font-size: 16px; color: rgb(225, 238, 250)">{{
-          !isLogin ? '欢迎登录账号！' : '欢迎注册账号！'
-        }}</span>
-        <el-button style="width: 100px; margin-top: 30px" @click="changeLogin">{{
+        <span>{{ !isLogin ? '已有账号？' : '还没有账号？' }}</span>
+        <el-button link type="primary" @click="changeLogin">{{
           !isLogin ? '去登录' : '去注册'
         }}</el-button>
       </div>
     </div>
-    <div ref="vantaRef" class="vanta"></div>
   </div>
   <el-dialog v-model="isWC" title="人机验证" width="40%" :before-close="handleClose">
     <div class="verification-flex">
@@ -126,7 +123,7 @@
 
 <script setup>
 import { setToken, setUsername, getUsername } from '@/core/auth.js'
-import { ref, reactive, onMounted, onBeforeUnmount, watch, getCurrentInstance } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as THREE from 'three'
@@ -309,8 +306,8 @@ const login = (formEl) => {
 const loading = ref(false)
 // 是否记住密码
 const checked = ref(true)
+// 动态波浪背景：跟随鼠标，离开页面时销毁
 const vantaRef = ref()
-// 动态背景
 let vantaEffect = null
 onMounted(() => {
   vantaEffect = WAVES({
@@ -332,7 +329,7 @@ onBeforeUnmount(() => {
 })
 // 展示登录还是展示注册
 const isLogin = ref(true)
-const moveRef = ref() // 左右移动的切换按钮模块
+const moveRef = ref() // 切换按钮模块
 const changeLogin = () => {
   let domain = window.location.host
   if (domain === 'shortlink.magestack.cn' || domain === 'shortlink.nageoffer.com') {
@@ -340,56 +337,46 @@ const changeLogin = () => {
     return
   }
   isLogin.value = !isLogin.value
-  if (isLogin.value) {
-    moveRef.value.style.transform = 'translate(0, 0)'
-  } else {
-    moveRef.value.style.transform = 'translate(-420px, 0)'
-  }
 }
 </script>
 
 <style lang="less" scoped>
 .login-box {
-  border: 2px solid #0984e3;
+  width: 400px;
+  position: relative;
+  z-index: 1;
   overflow: hidden;
-  display: flex;
-  justify-content: space-between;
-  border-radius: 20px;
-  padding: 0 40px 0 40px;
-  width: 700px;
-  // background-color: #eee;
-  position: absolute;
-  z-index: 999;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--sl-radius-lg);
+  padding: 36px 32px 20px;
   box-sizing: border-box;
-  // border: 1px solid #eee;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-  background-color: #fff;
-  animation: hideIndex 0.5s;
+  background-color: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 18px 48px rgba(8, 26, 56, 0.22);
 
   h2 {
-    font-size: 30px;
-    font-family:
-      PingFangSC-Semibold,
-      PingFang SC;
+    font-size: 20px;
     font-weight: 600;
-    color: #3a3f63;
+    color: var(--sl-text);
     width: 100%;
-    text-align: center;
-    padding: 20px;
+  }
+
+  .login-sub {
+    margin: 6px 0 24px;
+    font-size: 13px;
+    color: var(--sl-text-muted);
   }
 
   .el-form-item {
-    margin-bottom: 23px;
+    margin-bottom: 18px;
   }
 
   .btn-gourp {
-    margin-top: 30px;
+    margin-top: 8px;
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 0;
 
     .el-button {
       width: 100px;
@@ -397,14 +384,7 @@ const changeLogin = () => {
 
     .remeber-password {
       left: 0;
-      line-height: 0.5rem;
     }
-  }
-
-  .el-checkbox {
-    width: 100%;
-    text-align: center;
-    margin-top: 1rem;
   }
 }
 
@@ -412,34 +392,38 @@ const changeLogin = () => {
   margin-left: 0 !important;
 }
 
-@keyframes hideIndex {
-
-  // <!--具体细节自己可以调整-->
-  0% {
-    opacity: 0;
-    transform: translate(7.3125rem, -50%);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-  }
-}
-
 .login-page {
   position: relative;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--sl-bg);
+  background-image: radial-gradient(circle at 50% 0%, #eef2ff 0%, #f5f6f8 45%);
 }
 
+/* 波浪动画铺满整页，垫在表单卡片下面 */
 .vanta {
   position: absolute;
   top: 0;
   right: 0;
-  left: 0;
   bottom: 0;
+  left: 0;
   z-index: 0;
+}
+
+.login-brand {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 20px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .logon {
@@ -449,63 +433,23 @@ const changeLogin = () => {
 }
 
 .hidden {
-  animation: hidden 1s;
-  animation-fill-mode: forwards; // 保持最后的状态
-}
-
-@keyframes hidden {
-
-  // <!--具体细节自己可以调整-->
-  0% {
-    opacity: 1;
-  }
-
-  70% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 0;
-  }
+  display: none;
 }
 
 .move {
-  position: absolute;
-  right: 0;
-  height: 100%;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sl-border-light);
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  width: 40%;
-  transition-duration: 0.5s;
   align-items: center;
-  background: #06beb6;
-  /* fallback for old browsers */
-  background: -webkit-linear-gradient(to right, #0984e3, #0984e3);
-  /* Chrome 10-25, Safari 5.1-6 */
-  background: linear-gradient(to right,
-      #1a8fd5,
-      #0984e3);
-  /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
-}
-
-.title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  top: 15%;
-  z-index: 999;
-  font-size: 40px;
-  color: #fff;
-  font-weight: bolder;
+  justify-content: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--sl-text-muted);
 }
 
 :deep(.el-input__suffix-inner) {
   width: 60px;
-}
-
-.form-container1 {
-  transform: translateY(-80%);
 }
 
 .second-font {

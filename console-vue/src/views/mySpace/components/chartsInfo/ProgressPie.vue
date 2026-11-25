@@ -1,6 +1,6 @@
 <template>
   <div class="main-box">
-    <el-progress color="#3464e0" type="circle" :stroke-width="10" :percentage="data1Precentage">
+    <el-progress color="#2563eb" type="circle" :stroke-width="10" :percentage="data1Precentage">
       <template #default>
         <div class="flex-box">
           <span class="percentage-value">{{ labels[0] }}: {{ data1Precentage }}%</span>
@@ -8,7 +8,7 @@
         </div>
       </template>
     </el-progress>
-    <el-progress color="#3464e0" type="circle" :stroke-width="10" :percentage="data2Precentage">
+    <el-progress color="#2563eb" type="circle" :stroke-width="10" :percentage="data2Precentage">
       <template #default>
         <div class="flex-box">
           <span class="percentage-value">{{ labels[1] }}: {{ data2Precentage }}%</span>

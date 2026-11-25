@@ -76,7 +76,7 @@
         </div>
         <!-- 表格展示区域 -->
         <el-table :data="tableData" height="calc(100vh - 240px)" style="width: calc(100vw - 230px)"
-          :header-cell-style="{ background: '#f7f8fa', color: '#606266' }">
+          :header-cell-style="{ background: '#fafbfc', color: '#8a919e', fontWeight: '500' }">
           <!-- 数据为空时展示的内容 -->
           <template #empty>
             <div style="height: 60vh; display: flex; align-items: center; justify-content: center">
@@ -822,9 +822,8 @@ const removeLink = (data) => {
 
 .hover-box:hover {
   cursor: pointer;
-  color: rgba(40, 145, 206, 0.6);
-  background-color: #f7f7f7;
-  box-shadow: 0px 2px 8px 0px rgba(28, 41, 90, 0.1);
+  color: var(--sl-primary);
+  background-color: #f5f6f8;
 }
 
 .option-title {
@@ -832,13 +831,16 @@ const removeLink = (data) => {
   justify-content: space-between;
   align-items: center;
   height: 56px;
-  font-size: 15px;
+  padding: 0 16px;
+  font-size: 14px;
   font-weight: 600;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--sl-text);
+  border-bottom: 1px solid var(--sl-border);
 
   span {
     font-size: 12px;
     font-weight: 400;
+    color: var(--sl-text-muted);
   }
 }
 
@@ -848,15 +850,15 @@ const removeLink = (data) => {
   position: relative;
   height: 100%;
   width: 190px;
-  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  background-color: #ffffff;
+  border-right: 1px solid var(--sl-border);
 
   .item-box {
-    height: 43px;
-    width: 190px;
-    font-family:
-      PingFangSC-Semibold,
-      PingFang SC;
-    font-weight: 520;
+    height: 40px;
+    width: calc(100% - 16px);
+    margin: 2px 8px;
+    border-radius: var(--sl-radius-sm);
+    font-weight: 500;
   }
 
   .item-box:hover {
@@ -882,21 +884,23 @@ const removeLink = (data) => {
 
 .recycle-box {
   flex: 1;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--sl-border-light);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 13px;
+  color: var(--sl-text-secondary);
 }
 
 .edit {
   display: none;
   margin-left: 5px;
-  color: rgb(83, 97, 97);
-  font-size: 20px;
+  color: var(--sl-text-muted);
+  font-size: 18px;
 }
 
 .edit:hover {
-  color: #2991ce;
+  color: var(--sl-primary);
   cursor: pointer;
 }
 
@@ -924,28 +928,28 @@ const removeLink = (data) => {
 }
 
 .selectedItem {
-  color: #3464e0 !important;
-  background-color: #ebeffa !important;
+  color: var(--sl-primary) !important;
+  background-color: var(--sl-primary-soft) !important;
   font-weight: 600 !important;
 }
 
 .block:hover {
-  color: rgb(121, 187, 255);
+  color: var(--sl-primary);
 
   .el-icon {
-    color: rgb(121, 187, 255) !important;
+    color: var(--sl-primary) !important;
   }
 }
 
 .table-edit {
-  font-size: 20px;
-  margin-right: 20px;
-  color: #3677c2;
+  font-size: 18px;
+  margin-right: 16px;
+  color: var(--sl-primary);
   cursor: pointer;
 }
 
 .table-edit:hover {
-  color: #98cafe;
+  color: var(--el-color-primary-light-3);
 }
 
 .qr-code {
@@ -960,18 +964,22 @@ const removeLink = (data) => {
 .content-box {
   flex: 1;
   padding: 16px;
-  background-color: #eef0f5;
+  background-color: var(--sl-bg);
   position: relative;
 
   .table-box {
-    background-color: #ffffff;
+    background-color: var(--sl-surface);
     height: 100%;
+    border: 1px solid var(--sl-border);
+    border-radius: var(--sl-radius);
+    box-shadow: var(--sl-shadow-sm);
+    overflow: hidden;
 
     .buttons-box {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px;
+      padding: 16px 20px;
     }
 
     .pagination-block {
@@ -985,11 +993,18 @@ const removeLink = (data) => {
       height: 64px;
       display: flex;
       align-items: center;
-      padding-left: 16px;
+      padding-left: 20px;
 
       span:nth-child(1) {
-        font-size: 20px;
-        margin-right: 5px;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--sl-text);
+        margin-right: 8px;
+      }
+
+      span:nth-child(2) {
+        font-size: 13px;
+        color: var(--sl-text-muted);
       }
     }
   }
@@ -1013,8 +1028,9 @@ const removeLink = (data) => {
     margin-left: 10px;
 
     span:nth-child(1) {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 500;
+      color: var(--sl-text);
       overflow: hidden;
       text-overflow: ellipsis;
       display: -webkit-box; //作为弹性伸缩盒子模型显示。
@@ -1028,6 +1044,7 @@ const removeLink = (data) => {
 
       span {
         font-size: 12px;
+        color: var(--sl-text-muted);
       }
 
       img {
@@ -1080,7 +1097,7 @@ const removeLink = (data) => {
     display: -webkit-box; //作为弹性伸缩盒子模型显示。
     -webkit-box-orient: vertical; //设置伸缩盒子的子元素排列方式--从上到下垂直排列
     -webkit-line-clamp: 1; //显示的行
-    color: rgba(0, 0, 0, 0.4);
+    color: var(--sl-text-muted);
   }
 }
 
@@ -1092,12 +1109,13 @@ const removeLink = (data) => {
     span {
       font-size: 13px;
       font-weight: 600;
+      color: var(--sl-text);
       margin-right: 10px;
     }
 
     span:nth-child(1) {
       font-weight: 400;
-      color: rgba(0, 0, 0, 0.4);
+      color: var(--sl-text-muted);
     }
   }
 
@@ -1105,12 +1123,13 @@ const removeLink = (data) => {
     span {
       font-size: 13px;
       font-weight: 400;
+      color: var(--sl-text-secondary);
       margin-right: 10px;
     }
 
     span:nth-child(1) {
       font-weight: 400;
-      color: rgba(0, 0, 0, 0.4);
+      color: var(--sl-text-muted);
     }
   }
 }
@@ -1134,7 +1153,7 @@ const removeLink = (data) => {
 }
 
 .orderIndex {
-  color: #3677c2;
+  color: var(--sl-primary);
 }
 
 .sortOptions {

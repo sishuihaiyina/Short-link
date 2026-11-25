@@ -31,19 +31,20 @@ onMounted(() => {
   position: relative;
   justify-content: space-between;
   align-items: center;
-  height: 50px;
-  border-bottom: 2px solid rgba(0, 0, 0, .1);
-  padding: 15px 20px;
-  color: #3464e0;
-  font-size: 18px;
+  height: 44px;
+  border-bottom: 1px solid var(--sl-border);
+  padding: 0 4px;
+  color: var(--sl-text);
+  font-size: 15px;
+  font-weight: 600;
 }
 .title-box::before {
   content: '';
   position: absolute;
-  height: 5px;
+  height: 2px;
   width: 100px;
   left: 0;
-  background-color: #78dffc;;
+  background-color: var(--sl-primary);
   z-index: 99;
   bottom: -1px;
 }

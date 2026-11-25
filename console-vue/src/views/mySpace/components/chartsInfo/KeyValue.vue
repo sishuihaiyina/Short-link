@@ -34,7 +34,7 @@ defineProps({
       margin-bottom: 5px;
       justify-content: space-between;
       .key-text {
-        color: #3464e0;
+        color: var(--sl-primary);
       }
     }
   }
