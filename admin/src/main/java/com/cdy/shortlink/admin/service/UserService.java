@@ -59,4 +59,16 @@ public interface UserService extends IService<UserDO> {
      * @param token 用户token
      */
     void logout(String username, String token);
+
+    /**
+     * 修改当前登录用户的密码
+     * @param oldPassword 原密码
+     * @param newPassword 新密码
+     */
+    void changePassword(String oldPassword, String newPassword);
+
+    /**
+     * 强制当前用户的所有登录态失效（退出所有设备）
+     */
+    void kickAllSessions();
 }

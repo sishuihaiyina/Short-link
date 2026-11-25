@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.cdy.shortlink.admin.common.biz.user.UserContext;
 import com.cdy.shortlink.admin.common.constant.RedisCacheConstant;
 import com.cdy.shortlink.admin.common.convention.exception.ClientException;
 import com.cdy.shortlink.admin.common.enums.UserErrorCodeEnum;
@@ -31,6 +32,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -118,10 +120,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
      */
     @Override
     public void update(UserUpdateReqDTO userUpdateReqDTO) {
-        // TODO  验证当前用户名是否登录
         LambdaUpdateWrapper<UserDO> updateWrapper = Wrappers.lambdaUpdate(UserDO.class)
                 .eq(UserDO::getUsername, userUpdateReqDTO.getUsername());
-        baseMapper.update(BeanUtil.toBean(userUpdateReqDTO, UserDO.class), updateWrapper);
+        UserDO updateDO = BeanUtil.toBean(userUpdateReqDTO, UserDO.class);
+        // 密码只能走专用的改密接口（要校验原密码），这里强制忽略，避免绕过校验
+        updateDO.setPassword(null);
+        baseMapper.update(updateDO, updateWrapper);
     }
 
     /**
@@ -203,6 +207,57 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         if (Boolean.FALSE.equals(stringRedisTemplate.hasKey(loginKey))) {
             stringRedisTemplate.delete(loginKey);
         }
+    }
+
+    /**
+     * 修改当前登录用户的密码
+     * <p>
+     * 改完密码会把这个用户的所有登录态清掉，强制重新登录。
+     * @param oldPassword 原密码
+     * @param newPassword 新密码
+     */
+    @Override
+    public void changePassword(String oldPassword, String newPassword) {
+        String username = UserContext.getUsername();
+        if (StrUtil.isBlank(username)) {
+            throw new ClientException(UserErrorCodeEnum.USER_NOT_LOGIN);
+        }
+        if (StrUtil.isBlank(oldPassword) || StrUtil.isBlank(newPassword)) {
+            throw new ClientException("原密码和新密码不能为空");
+        }
+        if (newPassword.length() < 8) {
+            throw new ClientException("新密码长度不能少于 8 位");
+        }
+        if (Objects.equals(oldPassword, newPassword)) {
+            throw new ClientException("新密码不能与原密码相同");
+        }
+        UserDO userDO = baseMapper.selectOne(Wrappers.lambdaQuery(UserDO.class)
+                .eq(UserDO::getUsername, username)
+                .eq(UserDO::getDelFlag, 0));
+        if (userDO == null) {
+            throw new ClientException(UserErrorCodeEnum.USER_NULL);
+        }
+        if (!Objects.equals(userDO.getPassword(), oldPassword)) {
+            throw new ClientException("原密码不正确");
+        }
+        UserDO updateDO = new UserDO();
+        updateDO.setId(userDO.getId());
+        updateDO.setPassword(newPassword);
+        baseMapper.updateById(updateDO);
+        // 改密后所有设备重新登录
+        stringRedisTemplate.delete(RedisCacheConstant.LOGIN_USER_KEY + username);
+    }
+
+    /**
+     * 强制当前用户的所有登录态失效
+     */
+    @Override
+    public void kickAllSessions() {
+        String username = UserContext.getUsername();
+        if (StrUtil.isBlank(username)) {
+            throw new ClientException(UserErrorCodeEnum.USER_NOT_LOGIN);
+        }
+        stringRedisTemplate.delete(RedisCacheConstant.LOGIN_USER_KEY + username);
     }
 
     /**

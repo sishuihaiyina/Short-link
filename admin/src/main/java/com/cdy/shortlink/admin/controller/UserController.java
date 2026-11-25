@@ -7,6 +7,7 @@ import com.cdy.shortlink.admin.common.convention.errorcode.BaseErrorCode;
 import com.cdy.shortlink.admin.common.convention.exception.ClientException;
 import com.cdy.shortlink.admin.common.convention.result.Result;
 import com.cdy.shortlink.admin.common.convention.result.Results;
+import com.cdy.shortlink.admin.dto.req.UserChangePasswordReqDTO;
 import com.cdy.shortlink.admin.dto.req.UserLoginReqDTO;
 import com.cdy.shortlink.admin.dto.req.UserRegisterReqDTO;
 import com.cdy.shortlink.admin.dto.req.UserUpdateReqDTO;
@@ -99,6 +100,24 @@ public class UserController {
     public Result<Void> logout(@RequestParam("username") String username, @RequestParam("token") String token) {
         checkSelf(username);
         userService.logout(username, token);
+        return Results.success();
+    }
+
+    /**
+     * 修改当前登录用户的密码，改完所有设备需要重新登录
+     */
+    @PutMapping("/api/short-link/admin/v1/user/password")
+    public Result<Void> changePassword(@RequestBody UserChangePasswordReqDTO userChangePasswordReqDTO) {
+        userService.changePassword(userChangePasswordReqDTO.getOldPassword(), userChangePasswordReqDTO.getNewPassword());
+        return Results.success();
+    }
+
+    /**
+     * 退出所有设备（让当前用户的所有 token 失效）
+     */
+    @DeleteMapping("/api/short-link/admin/v1/user/sessions")
+    public Result<Void> kickAllSessions() {
+        userService.kickAllSessions();
         return Results.success();
     }
 

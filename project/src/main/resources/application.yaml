@@ -47,6 +47,15 @@ short-link:
   stats:
     locale:
       amap-key: ${AMAP_KEY}
+  recycle-bin:
+    # 回收站保留天数，到期后物理删除链接及其统计数据
+    retention-days: ${RECYCLE_BIN_RETENTION_DAYS:30}
+    # 单次最多清理多少条
+    batch-size: 200
+    cleanup:
+      enabled: ${RECYCLE_BIN_CLEANUP_ENABLED:true}
+      # 每天凌晨 3 点执行
+      cron: '${RECYCLE_BIN_CLEANUP_CRON:0 0 3 * * ?}'
 
 mybatis-plus:
   configuration:

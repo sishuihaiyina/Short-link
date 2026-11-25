@@ -84,5 +84,22 @@ export default {
       params: data,
       url: 'stats/access-record'
     })
+  },
+  // 导出访问记录
+  exportLinkTable(data) {
+    return http({
+      method: 'get',
+      params: data,
+      url: 'stats/export',
+      responseType: 'blob'
+    })
+  },
+  // 全站总览
+  queryOverview(data) {
+    return http({
+      method: 'get',
+      params: data,
+      url: 'stats/overview'
+    })
   }
 }

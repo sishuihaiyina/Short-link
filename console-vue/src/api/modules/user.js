@@ -45,5 +45,20 @@ export default {
       url: '/actual/user/' + data,
       method: 'get'
     })
+  },
+  // 修改密码（需要原密码，改完所有设备重新登录）
+  changePassword(data) {
+    return http({
+      url: '/user/password',
+      method: 'put',
+      data
+    })
+  },
+  // 退出所有设备
+  kickAllSessions() {
+    return http({
+      url: '/user/sessions',
+      method: 'delete'
+    })
   }
 }

@@ -58,7 +58,11 @@
           <span>{{ userInfo?.data?.data?.mail }}</span>
         </el-descriptions-item>
       </el-descriptions>
-      <el-button style="position: absolute;left: 35px; top: 250px; " type="primary" @click="dialogVisible = !dialogVisible">修改个人信息</el-button>
+      <div class="action-bar">
+        <el-button type="primary" @click="dialogVisible = !dialogVisible">修改个人信息</el-button>
+        <el-button @click="pwdDialogVisible = true">修改密码</el-button>
+        <el-button type="danger" plain :loading="kickLoading" @click="kickSessions">退出所有设备</el-button>
+      </div>
     </div>
   </div>
   <!-- 修改信息 -->
@@ -108,16 +112,6 @@
             <template v-slot:prepend> 姓<span class="second-font">名</span> </template>
           </el-input>
         </el-form-item>
-        <el-form-item prop="password">
-          <el-input
-            v-model="userInfoForm.password"
-            placeholder="默认密码，如需修改可输入新密码"
-            show-word-limit
-            clearable
-          >
-            <template v-slot:prepend> 密<span class="second-font">码</span> </template>
-          </el-input>
-        </el-form-item>
         <el-form-item>
           <div style="width: 100%; display: flex; justify-content: flex-end">
             <el-button @click="dialogVisible = false">取消</el-button>
@@ -127,11 +121,31 @@
       </el-form>
     </div>
   </el-dialog>
+
+  <!-- 修改密码 -->
+  <el-dialog v-model="pwdDialogVisible" title="修改密码" width="420px" :close-on-click-modal="false">
+    <el-form ref="pwdFormRef" :model="pwdForm" label-width="90px" :rules="pwdRules">
+      <el-form-item label="原密码" prop="oldPassword">
+        <el-input v-model="pwdForm.oldPassword" type="password" show-password placeholder="请输入原密码" />
+      </el-form-item>
+      <el-form-item label="新密码" prop="newPassword">
+        <el-input v-model="pwdForm.newPassword" type="password" show-password placeholder="至少 8 位" />
+      </el-form-item>
+      <el-form-item label="确认新密码" prop="confirmPassword">
+        <el-input v-model="pwdForm.confirmPassword" type="password" show-password placeholder="再次输入新密码" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="pwdDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="pwdSubmitting" @click="submitPassword">确认修改</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { getCurrentInstance, ref, reactive } from 'vue'
-import { getUsername } from '@/core/auth'
+import { getCurrentInstance, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { getUsername, removeKey, removeUsername } from '@/core/auth'
 import { cloneDeep } from 'lodash'
 import { ElMessage } from 'element-plus'
 const loginFormRef = ref()
@@ -192,6 +206,83 @@ const changeUserInfo = (formEl) => {
     }
   })
 }
+
+// ===== 修改密码 / 退出所有设备 =====
+const router = useRouter()
+const pwdDialogVisible = ref(false)
+const pwdSubmitting = ref(false)
+const pwdFormRef = ref()
+const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+const pwdRules = {
+  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 8, max: 32, message: '密码长度 8~32 位', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== pwdForm.newPassword) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
+const clearLoginState = () => {
+  removeUsername()
+  removeKey()
+  localStorage.removeItem('token')
+  localStorage.removeItem('username')
+  router.push('/login')
+}
+
+const submitPassword = () => {
+  pwdFormRef.value?.validate(async (valid) => {
+    if (!valid) return
+    pwdSubmitting.value = true
+    try {
+      const res = await API.user.changePassword({
+        oldPassword: pwdForm.oldPassword,
+        newPassword: pwdForm.newPassword
+      })
+      if (res?.data?.code === '0') {
+        ElMessage.success('密码已修改，请使用新密码重新登录')
+        pwdDialogVisible.value = false
+        clearLoginState()
+      } else {
+        ElMessage.error(res?.data?.message || '修改失败')
+      }
+    } catch (e) {
+      ElMessage.error('修改失败')
+    } finally {
+      pwdSubmitting.value = false
+    }
+  })
+}
+
+const kickLoading = ref(false)
+const kickSessions = async () => {
+  kickLoading.value = true
+  try {
+    const res = await API.user.kickAllSessions()
+    if (res?.data?.code === '0') {
+      ElMessage.success('已退出所有设备，请重新登录')
+      clearLoginState()
+    } else {
+      ElMessage.error(res?.data?.message || '操作失败')
+    }
+  } catch (e) {
+    ElMessage.error('操作失败')
+  } finally {
+    kickLoading.value = false
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -216,6 +307,12 @@ const changeUserInfo = (formEl) => {
 
 .register {
   padding-right: 30px;
+}
+
+.action-bar {
+  margin-top: 20px;
+  display: flex;
+  gap: 12px;
 }
 
 :deep(.el-descriptions__label) {

@@ -5,6 +5,7 @@
         <div class="header">
           <div @click="toMySpace" class="logo">短链接生成平台</div>
           <div style="display: flex; align-items: center">
+            <div class="nav-link" @click="toOverview">概览</div>
             <el-dropdown>
               <div class="block">
                 <span
@@ -82,6 +83,10 @@ const logout = async () => {
 // 点击左上方的图片跳转到我的空间
 const toMySpace = () => {
   router.push('/home' + '/space')
+}
+// 跳转到全站概览
+const toOverview = () => {
+  router.push('/home/overview')
 }
 const username = ref('')
 onMounted(async () => {
@@ -188,6 +193,17 @@ const truncateText = (text, maxLength) => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.nav-link {
+  margin-right: 24px;
+  font-size: 14px;
+  color: var(--sl-text-secondary);
+  cursor: pointer;
+}
+
+.nav-link:hover {
+  color: var(--sl-primary);
 }
 
 .name-span:hover {

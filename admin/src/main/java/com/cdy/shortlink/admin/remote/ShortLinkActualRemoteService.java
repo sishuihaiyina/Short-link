@@ -160,7 +160,9 @@ public interface ShortLinkActualRemoteService {
             @RequestParam("fullShortUrl") String fullShortUrl,
             @RequestParam("gid") String gid,
             @RequestParam("startDate") String startDate,
-            @RequestParam("endDate") String endDate
+            @RequestParam("endDate") String endDate,
+            @RequestParam("current") long current,
+            @RequestParam("size") long size
     );
 
     /**
@@ -174,6 +176,23 @@ public interface ShortLinkActualRemoteService {
     Result<Page<ShortLinkStatsAccessRecordRespDTO>> groupShortLinkStatsAccessRecord(
             @RequestParam("gid") String gid,
             @RequestParam("startDate") String startDate,
-            @RequestParam("endDate") String endDate
+            @RequestParam("endDate") String endDate,
+            @RequestParam("current") long current,
+            @RequestParam("size") long size
     );
+
+    /**
+     * 统计消息死信分页
+     */
+    @GetMapping("/api/short-link/v1/stats/dlq")
+    Result<Page<ShortLinkDlqMessageRespDTO>> pageDlq(
+            @RequestParam("current") long current,
+            @RequestParam("size") long size
+    );
+
+    /**
+     * 重放一条死信消息
+     */
+    @PostMapping("/api/short-link/v1/stats/dlq/replay")
+    Result<Void> replayDlq(@RequestParam("id") Long id);
 }

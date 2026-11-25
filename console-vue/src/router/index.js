@@ -28,6 +28,12 @@ const router = createRouter({
           meta: { title: '我的空间' }
         },
         {
+          path: 'overview',
+          name: 'Overview',
+          component: () => import('@/views/overview/OverviewIndex.vue'),
+          meta: { title: '概览' }
+        },
+        {
           path: 'recycleBin',
           name: 'RecycleBin',
           component: () => import('@/views/recycleBin/RecycleBinIndex.vue'),

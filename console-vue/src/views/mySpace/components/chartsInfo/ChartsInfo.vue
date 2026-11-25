@@ -164,6 +164,9 @@
         </div>
       </el-tab-pane>
       <el-tab-pane name="历史记录" label="历史记录">
+        <div class="export-bar">
+          <el-button size="small" :loading="exporting" @click="exportRecords">导出 Excel</el-button>
+        </div>
         <el-table :data="tableInfo?.data?.data?.records" style="width: 100%; height: calc(100vh - 300px)">
           <el-table-column prop="createTime" label="访问时间" width="160" />
           <el-table-column prop="ip" label="访问IP" width="140" />
@@ -194,6 +197,8 @@
 
 <script setup>
 import { ref, watch, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
+import smallLinkPageApi from '@/api/modules/smallLinkPage'
 import TitleContent from './TitleContent.vue'
 import * as echarts from 'echarts'
 import 'echarts/map/js/china.js'
@@ -361,6 +366,37 @@ const pageParams = reactive({
   size: 10
 })
 const totalNums = ref(0)
+
+// 导出访问记录（Excel）
+const exporting = ref(false)
+const exportRecords = async () => {
+  const pageData = props?.tableInfo?.data?.data
+  if (!pageData) {
+    ElMessage.warning('暂无可导出的数据')
+    return
+  }
+  exporting.value = true
+  try {
+    const res = await smallLinkPageApi.exportLinkTable({
+      gid: pageData.gid,
+      fullShortUrl: pageData.fullShortUrl,
+      startDate: pageData.startDate,
+      endDate: pageData.endDate,
+      group: !!props.isGroup
+    })
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `访问记录_${pageData.startDate}_${pageData.endDate}.xlsx`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    ElMessage.error('导出失败，请稍后重试')
+  } finally {
+    exporting.value = false
+  }
+}
 watch(
   () => props.tableInfo,
   () => {
@@ -984,5 +1020,11 @@ watch(
   .el-pagination {
     margin-left: 20%;
   }
+}
+
+.export-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 </style>
