@@ -240,10 +240,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         if (!Objects.equals(userDO.getPassword(), oldPassword)) {
             throw new ClientException("原密码不正确");
         }
-        UserDO updateDO = new UserDO();
-        updateDO.setId(userDO.getId());
-        updateDO.setPassword(newPassword);
-        baseMapper.updateById(updateDO);
+        // t_user 按 username 分片，必须用分片键更新；updateById 走主键路由不到分表
+        baseMapper.update(null, Wrappers.lambdaUpdate(UserDO.class)
+                .eq(UserDO::getUsername, username)
+                .set(UserDO::getPassword, newPassword));
         // 改密后所有设备重新登录
         stringRedisTemplate.delete(RedisCacheConstant.LOGIN_USER_KEY + username);
     }

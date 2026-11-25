@@ -359,7 +359,9 @@ const props = defineProps({
   isGroup: Boolean,
   nums: Number,
   favicon: String,
-  originUrl: String
+  originUrl: String,
+  // 导出用的查询参数：{ gid, fullShortUrl, startDate, endDate, group }
+  exportParams: Object
 })
 const pageParams = reactive({
   current: 1,
@@ -370,25 +372,42 @@ const totalNums = ref(0)
 // 导出访问记录（Excel）
 const exporting = ref(false)
 const exportRecords = async () => {
-  const pageData = props?.tableInfo?.data?.data
-  if (!pageData) {
+  const params = props.exportParams
+  if (!params || !params.gid || !params.startDate || !params.endDate) {
     ElMessage.warning('暂无可导出的数据')
     return
   }
   exporting.value = true
   try {
     const res = await smallLinkPageApi.exportLinkTable({
-      gid: pageData.gid,
-      fullShortUrl: pageData.fullShortUrl,
-      startDate: pageData.startDate,
-      endDate: pageData.endDate,
-      group: !!props.isGroup
+      gid: params.gid,
+      fullShortUrl: params.fullShortUrl,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      group: !!params.group
     })
-    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    // 后端出错时会返回 JSON，这里要识别出来，避免把错误信息当成 xlsx 下载
+    const contentType = res?.data?.type || ''
+    if (contentType.includes('json')) {
+      const text = await res.data.text()
+      let message = '导出失败'
+      try {
+        message = JSON.parse(text).message || message
+      } catch (e) {
+        // ignore
+      }
+      ElMessage.error(message)
+      return
+    }
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
+    const start = String(params.startDate).slice(0, 10)
+    const end = String(params.endDate).slice(0, 10)
     a.href = url
-    a.download = `访问记录_${pageData.startDate}_${pageData.endDate}.xlsx`
+    a.download = `访问记录_${start}_${end}.xlsx`
     a.click()
     window.URL.revokeObjectURL(url)
   } catch (e) {

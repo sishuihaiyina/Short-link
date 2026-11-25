@@ -301,6 +301,7 @@
     <!-- 查看数据弹框 -->
     <ChartsInfo style="width: 880px" ref="chartsInfoRef" :title="chartsInfoTitle" :info="chartsInfo"
       :tableInfo="tableInfo" :isGroup="isGroup" :nums="nums" :favicon="favicon1" :originUrl="originUrl1"
+      :exportParams="exportParams"
       @changeTime="changeTime" @changePage="changePage" top="60px"></ChartsInfo>
     <!-- 新建分组弹框 -->
     <el-dialog v-model="isAddGroup" title="新建短链接分组" style="width: 40%">
@@ -395,6 +396,8 @@ const chartsInfoRef = ref()
 const chartsInfoTitle = ref()
 const chartsInfo = ref()
 const tableInfo = ref()
+// 导出用的查询参数（admin 返回的 Page 里不带日期字段，只能在这里维护）
+const exportParams = ref({})
 const createLink1Ref = ref()
 const createLink2Ref = ref()
 let selectedIndex = ref(0)
@@ -435,6 +438,18 @@ const visitLink = {
 const isGroup = ref(false)
 const tableFullShortUrl = ref()
 const tableGid = ref()
+
+// 同步导出参数：admin 返回的 Page 里没有 startDate/fullShortUrl 这些字段，只能自己记一份
+const syncExportParams = () => {
+  exportParams.value = {
+    gid: tableGid.value,
+    fullShortUrl: tableFullShortUrl.value,
+    startDate: statsFormData.startDate,
+    endDate: statsFormData.endDate,
+    group: !!isGroup.value
+  }
+}
+
 // 点击查看数据图表
 const chartsVisible = async (rowInfo, dateList) => {
   chartsInfoTitle.value = rowInfo?.describe
@@ -469,6 +484,7 @@ const chartsVisible = async (rowInfo, dateList) => {
   }
   tableInfo.value = tableRes
   chartsInfo.value = res?.data?.data
+  syncExportParams()
   // debugger
 }
 // 图表修改时间后重新请求数
@@ -493,6 +509,7 @@ const changeTimeData = async (rowInfo, dateList) => {
   }
   tableInfo.value = tableRes
   chartsInfo.value = res?.data?.data
+  syncExportParams()
 }
 // 修改时间
 const changeTime = (dateList) => {
@@ -515,6 +532,7 @@ const changePage = async (page) => {
     })
   }
   tableInfo.value = tableRes
+  syncExportParams()
 }
 // 将原来的数据转化为拖拽后传给后端的数据格式
 const transformGroupData = (oldIndex, newIndex) => {
