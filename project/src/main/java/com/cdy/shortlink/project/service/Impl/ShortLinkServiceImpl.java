@@ -54,6 +54,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -555,8 +557,15 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
      */
     // 通过生成UUID存入浏览器Cookie来实现访客类型统计，因为这样可以在无登录场景下统计匿名访客类型
     private ShortLinkStatsRecordDTO buildLinkStatsRecordAndSetUser(String fullShortUrl, ServletRequest request, ServletResponse response) {
+        // 全局集合用于「累计 UV/UIP」（30 天内同一访客只算一次），当日集合用于「今日 UV/UIP」（每天重新计一次）
+        String today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String uvGlobalKey = "short-link:stats:uv:" + fullShortUrl;
+        String uvDailyKey = uvGlobalKey + ":" + today;
+        String uipGlobalKey = "short-link:stats:uip:" + fullShortUrl;
+        String uipDailyKey = uipGlobalKey + ":" + today;
         // Java的lambda不能直接给外面的boolean赋值，用AtomicBoolean可以绕过限制
         AtomicBoolean uvFirstFlag = new AtomicBoolean();
+        AtomicBoolean uvDailyFirstFlag = new AtomicBoolean();
         Cookie[] cookies = ((HttpServletRequest) request).getCookies();
         AtomicReference<String> uv = new AtomicReference<>();
         Runnable addResponseCookieTask = () -> {
@@ -566,7 +575,9 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             uvCookie.setPath(StrUtil.sub(fullShortUrl, fullShortUrl.indexOf("/"), fullShortUrl.length()));
             ((HttpServletResponse) response).addCookie(uvCookie);
             uvFirstFlag.set(Boolean.TRUE);
-            stringRedisTemplate.opsForSet().add("short-link:stats:uv:" + fullShortUrl, uv.get());
+            uvDailyFirstFlag.set(Boolean.TRUE);
+            stringRedisTemplate.opsForSet().add(uvGlobalKey, uv.get());
+            stringRedisTemplate.opsForSet().add(uvDailyKey, uv.get());
         };
         if (ArrayUtil.isNotEmpty(cookies)) {
             Arrays.stream(cookies)
@@ -575,8 +586,10 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .map(Cookie::getValue)
                     .ifPresentOrElse(each -> {
                         uv.set(each);
-                        Long uvAdded = stringRedisTemplate.opsForSet().add("short-link:stats:uv:" + fullShortUrl, each);
+                        Long uvAdded = stringRedisTemplate.opsForSet().add(uvGlobalKey, each);
                         uvFirstFlag.set(uvAdded != null && uvAdded > 0L);
+                        Long uvDailyAdded = stringRedisTemplate.opsForSet().add(uvDailyKey, each);
+                        uvDailyFirstFlag.set(uvDailyAdded != null && uvDailyAdded > 0L);
                     }, addResponseCookieTask);
         } else {
             addResponseCookieTask.run();
@@ -586,11 +599,15 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         String browser = LinkUtil.getBrowser(((HttpServletRequest) request));
         String device = LinkUtil.getDevice(((HttpServletRequest) request));
         String network = LinkUtil.getNetwork(((HttpServletRequest) request));
-        Long uipAdded = stringRedisTemplate.opsForSet().add("short-link:stats:uip:" + fullShortUrl, remoteAddr);
+        Long uipAdded = stringRedisTemplate.opsForSet().add(uipGlobalKey, remoteAddr);
         boolean uipFirstFlag = uipAdded != null && uipAdded > 0L;
-        // UV/UIP 集合 30 天后过期，避免 Redis key 无限增长（与 UV Cookie 有效期一致）
-        stringRedisTemplate.expire("short-link:stats:uv:" + fullShortUrl, 30, TimeUnit.DAYS);
-        stringRedisTemplate.expire("short-link:stats:uip:" + fullShortUrl, 30, TimeUnit.DAYS);
+        Long uipDailyAdded = stringRedisTemplate.opsForSet().add(uipDailyKey, remoteAddr);
+        boolean uipDailyFirstFlag = uipDailyAdded != null && uipDailyAdded > 0L;
+        // 全局集合 30 天过期（与 UV Cookie 一致），当日集合保留 2 天即可
+        stringRedisTemplate.expire(uvGlobalKey, 30, TimeUnit.DAYS);
+        stringRedisTemplate.expire(uipGlobalKey, 30, TimeUnit.DAYS);
+        stringRedisTemplate.expire(uvDailyKey, 2, TimeUnit.DAYS);
+        stringRedisTemplate.expire(uipDailyKey, 2, TimeUnit.DAYS);
         return ShortLinkStatsRecordDTO.builder()
                 // 每次访问生成唯一事件 ID，消费端据此做幂等去重
                 .eventId(UUID.fastUUID().toString())
@@ -598,6 +615,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .uv(uv.get())
                 .uvFirstFlag(uvFirstFlag.get())
                 .uipFirstFlag(uipFirstFlag)
+                .uvDailyFirstFlag(uvDailyFirstFlag.get())
+                .uipDailyFirstFlag(uipDailyFirstFlag)
                 .remoteAddr(remoteAddr)
                 .os(os)
                 .browser(browser)

@@ -47,7 +47,8 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
             "WHERE " +
             "    full_short_url = #{param.fullShortUrl} " +
             "    AND gid = #{param.gid} " +
-            "    AND create_time BETWEEN #{param.startDate} and #{param.endDate} " +
+            "    AND create_time >= #{param.startDate} " +
+            "    AND create_time < DATE_ADD(DATE(#{param.endDate}), INTERVAL 1 DAY) " +
             "GROUP BY " +
             "    full_short_url, gid, ip " +
             "ORDER BY " +
@@ -82,7 +83,8 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
             "SELECT " +
             "    user, " +
             "    CASE " +
-            "        WHEN MIN(create_time) BETWEEN #{startDate} AND #{endDate} THEN '新访客' " +
+            "        WHEN MIN(create_time) >= #{startDate} " +
+            "             AND MIN(create_time) &lt; DATE_ADD(DATE(#{endDate}), INTERVAL 1 DAY) THEN '新访客' " +
             "        ELSE '老访客' " +
             "    END AS uvType " +
             "FROM " +
@@ -117,7 +119,8 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
             "WHERE " +
             "    full_short_url = #{param.fullShortUrl} " +
             "    AND gid = #{param.gid} " +
-            "    AND create_time BETWEEN #{param.startDate} and #{param.endDate} " +
+            "    AND create_time >= #{param.startDate} " +
+            "    AND create_time < DATE_ADD(DATE(#{param.endDate}), INTERVAL 1 DAY) " +
             "GROUP BY " +
             "    full_short_url, gid;")
     LinkAccessStatsDO findPvUvUipStatsByShortLink(@Param("param") ShortLinkStatsReqDTO requestParam);
@@ -132,7 +135,8 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
             "    t_link_access_logs " +
             "WHERE " +
             "    gid = #{param.gid} " +
-            "    AND create_time BETWEEN #{param.startDate} and #{param.endDate} " +
+            "    AND create_time >= #{param.startDate} " +
+            "    AND create_time < DATE_ADD(DATE(#{param.endDate}), INTERVAL 1 DAY) " +
             "GROUP BY " +
             "    gid, ip " +
             "ORDER BY " +
@@ -151,7 +155,8 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
             "    t_link_access_logs " +
             "WHERE " +
             "    gid = #{param.gid} " +
-            "    AND create_time BETWEEN #{param.startDate} and #{param.endDate} " +
+            "    AND create_time >= #{param.startDate} " +
+            "    AND create_time < DATE_ADD(DATE(#{param.endDate}), INTERVAL 1 DAY) " +
             "GROUP BY " +
             "    gid;")
     LinkAccessStatsDO findPvUvUidStatsByGroup(@Param("param") ShortLinkGroupStatsReqDTO requestParam);
@@ -163,7 +168,8 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
             "SELECT " +
             "    user, " +
             "    CASE " +
-            "        WHEN MIN(create_time) BETWEEN #{startDate} AND #{endDate} THEN '新访客' " +
+            "        WHEN MIN(create_time) >= #{startDate} " +
+            "             AND MIN(create_time) &lt; DATE_ADD(DATE(#{endDate}), INTERVAL 1 DAY) THEN '新访客' " +
             "        ELSE '老访客' " +
             "    END AS uvType " +
             "FROM " +

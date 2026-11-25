@@ -129,8 +129,9 @@ public class ShortLinkStatsSaveServiceImpl implements ShortLinkStatsSaveService 
             int weekValue = week.getIso8601Value();
             LinkAccessStatsDO linkAccessStatsDO = LinkAccessStatsDO.builder()
                     .pv(1)
-                    .uv(statsRecord.getUvFirstFlag() ? 1 : 0)
-                    .uip(statsRecord.getUipFirstFlag() ? 1 : 0)
+                    // 小时表是按天分桶的，UV/UIP 用「当日首次」标记
+                    .uv(Boolean.TRUE.equals(statsRecord.getUvDailyFirstFlag()) ? 1 : 0)
+                    .uip(Boolean.TRUE.equals(statsRecord.getUipDailyFirstFlag()) ? 1 : 0)
                     .hour(hour)
                     .weekday(weekValue)
                     .fullShortUrl(fullShortUrl)
@@ -169,13 +170,15 @@ public class ShortLinkStatsSaveServiceImpl implements ShortLinkStatsSaveService 
                     .network(statsRecord.getNetwork())
                     .cnt(1).gid(gid).fullShortUrl(fullShortUrl).date(new Date())
                     .build());
+            // 链接累计维度：用 30 天全局去重标记
             shortLinkMapper.incrementStats(gid, fullShortUrl, 1,
-                    statsRecord.getUvFirstFlag() ? 1 : 0,
-                    statsRecord.getUipFirstFlag() ? 1 : 0);
+                    Boolean.TRUE.equals(statsRecord.getUvFirstFlag()) ? 1 : 0,
+                    Boolean.TRUE.equals(statsRecord.getUipFirstFlag()) ? 1 : 0);
+            // 今日维度：用当日去重标记，每天重新计一次
             linkStatsTodayMapper.shortLinkTodayStats(LinkStatsTodayDO.builder()
                     .todayPv(1)
-                    .todayUv(statsRecord.getUvFirstFlag() ? 1 : 0)
-                    .todayUip(statsRecord.getUipFirstFlag() ? 1 : 0)
+                    .todayUv(Boolean.TRUE.equals(statsRecord.getUvDailyFirstFlag()) ? 1 : 0)
+                    .todayUip(Boolean.TRUE.equals(statsRecord.getUipDailyFirstFlag()) ? 1 : 0)
                     .gid(gid)
                     .fullShortUrl(fullShortUrl)
                     .date(new Date())

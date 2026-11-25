@@ -55,12 +55,22 @@ public class ShortLinkStatsRecordDTO {
     private String uv;
 
     /**
-     * UV访问标识
+     * UV访问标识（链接维度，30 天内第一次访问，用于累计 UV）
      */
     private Boolean uvFirstFlag;
 
     /**
-     * UIP访问标识
+     * UIP访问标识（链接维度，30 天内第一次访问，用于累计 UIP）
      */
     private Boolean uipFirstFlag;
+
+    /**
+     * 当日 UV 首次访问标识（当天第一次访问，用于今日 UV）
+     */
+    private Boolean uvDailyFirstFlag;
+
+    /**
+     * 当日 UIP 首次访问标识（当天第一次访问，用于今日 UIP）
+     */
+    private Boolean uipDailyFirstFlag;
 }
