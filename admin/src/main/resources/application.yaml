@@ -4,25 +4,30 @@ server:
 spring:
   application:
     name: short-link-admin
-  datasource:
-    # ShardingSphere 对 Driver 自定义，实现分库分表等隐藏逻辑
-    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
-    # ShardingSphere 配置文件路径
-    url: jdbc:shardingsphere:classpath:shardingsphere-config-${database.env:dev}.yaml
   data:
     redis:
-      host: 127.0.0.1
-      port: 6379
-      password: 123456
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      # 不设默认值：未配置时启动直接失败，避免悄悄用开发密码跑起来
+      password: ${REDIS_PASSWORD}
   cloud:
     nacos:
       discovery:
-        server-addr: 127.0.0.1:8848
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
 
 short-link:
+  datasource:
+    # ShardingSphere YAML 位置（由 ShardingSphereDataSourceConfiguration 解析占位符后建数据源）
+    config-location: ${SHARDINGSPHERE_CONFIG:classpath:shardingsphere-config-${database.env:dev}.yaml}
   group:
     max-number: 20
   flow-limit:
     enable: true
     time-window: 1
     max-access-count: 20
+  login:
+    # 登录态有效期（分钟），网关校验通过后会滑动续期
+    token-ttl-minutes: ${LOGIN_TOKEN_TTL_MINUTES:30}
+  internal:
+    # admin -> project 的内部调用凭证，必须与 project 端配置一致
+    token: ${INTERNAL_API_TOKEN}

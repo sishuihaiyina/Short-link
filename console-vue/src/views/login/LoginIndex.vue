@@ -99,26 +99,6 @@
       </div>
     </div>
   </div>
-  <el-dialog v-model="isWC" title="人机验证" width="40%" :before-close="handleClose">
-    <div class="verification-flex">
-      <span>扫码下方二维码，关注后回复：<strong><span style="color:blue;">link</span></strong>，获取拿个offer-SaaS短链接系统人机验证码</span>
-      <img class="img" src="@/assets/png/公众号二维码.png" alt="">
-      <el-form class="form" :model="verification" :rules="verificationRule" ref="verificationRef">
-        <el-form-item prop="code" label="验证码">
-          <el-input v-model="verification.code" />
-        </el-form-item>
-      </el-form>
-    </div>
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="isWC = false">取消</el-button>
-        <el-button type="primary" @click="verificationLogin(verificationRef)">
-          确认
-        </el-button>
-      </span>
-    </template>
-  </el-dialog>
-  <!-- </template> -->
 </template>
 
 <script setup>
@@ -214,61 +194,12 @@ const addUser = (formEl) => {
     }
   })
 }
-// 公众号验证码
-const isWC = ref(false)
-const verificationRef = ref()
-const verification = reactive({
-  code: ''
-})
-const verificationRule = reactive({
-  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }]
-})
-const verificationLogin = (formEl) => {
-  if (!formEl) return
-  formEl.validate(async (valid) => {
-    if (valid) {
-      const tempPassword = loginForm.password
-      loginForm.password = verification.code
-      const res1 = await API.user.login(loginForm)
-      if (res1.data.code === '0') {
-        const token = res1?.data?.data?.token
-        // 将username和token保存到cookies中和localStorage中
-        if (token) {
-          setToken(token)
-          setUsername(loginForm.username)
-          localStorage.setItem('token', token)
-          localStorage.setItem('username', loginForm.username)
-        }
-        ElMessage.success('登录成功！')
-        router.push('/home')
-      } else if (res1.data.message === '用户已登录') {
-        // 如果已经登录了，判断一下浏览器保存的登录信息是不是再次登录的信息，如果是就正常登录
-        const cookiesUsername = getUsername()
-        if (cookiesUsername === loginForm.username) {
-          ElMessage.success('登录成功！')
-          router.push('/home')
-        } else {
-          ElMessage.warning('用户已在别处登录，请勿重复登录！')
-        }
-      } else {
-        ElMessage.error('请输入正确的验证码!')
-      }
-      loginForm.password = tempPassword
-    }
-  })
-}
 // 登录
 const login = (formEl) => {
   if (!formEl) return
   formEl.validate(async (valid) => {
     if (!valid) return false
     try {
-      // 当域名为下面这两个时，弹出公众号弹框
-      // let domain = window.location.host
-      // if (domain === 'shortlink.magestack.cn' || domain === 'shortlink.nageoffer.com') {
-      //   isWC.value = true
-      //   return
-      // }
       const res1 = await API.user.login(loginForm)
       if (res1?.data?.code === '0') {
         const token = res1?.data?.data?.token
@@ -331,11 +262,6 @@ onBeforeUnmount(() => {
 const isLogin = ref(true)
 const moveRef = ref() // 切换按钮模块
 const changeLogin = () => {
-  let domain = window.location.host
-  if (domain === 'shortlink.magestack.cn' || domain === 'shortlink.nageoffer.com') {
-    ElMessage.warning('演示环境暂不支持注册')
-    return
-  }
   isLogin.value = !isLogin.value
 }
 </script>
@@ -454,20 +380,5 @@ const changeLogin = () => {
 
 .second-font {
   margin-left: 13px;
-}
-
-.verification-flex {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-
-  .img {
-    margin-top: 10px;
-    align-self: center;
-  }
-  .form {
-    transform: translateY(15px);
-    width: 90%;
-  }
 }
 </style>

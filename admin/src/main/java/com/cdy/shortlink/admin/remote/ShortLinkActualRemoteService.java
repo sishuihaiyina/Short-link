@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * 短链接中台远程调用服务
  */
-@FeignClient("short-link-project")
+@FeignClient(value = "short-link-project", configuration = InternalApiFeignConfiguration.class)
 public interface ShortLinkActualRemoteService {
 
     /**

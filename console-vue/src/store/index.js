@@ -4,8 +4,8 @@ import { createStore } from 'vuex'
 const store = createStore({
   state() {
     return {
-      // domain: 'nurl.ink'
-      domain: 's.nageoffer.com'
+      // 展示用的短链域名，可在 .env.development 里用 VITE_SHORT_DOMAIN 覆盖
+      domain: import.meta.env.VITE_SHORT_DOMAIN || '127.0.0.1:8001'
     }
   }
 })

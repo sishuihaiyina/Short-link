@@ -265,12 +265,14 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
                 .eq(LinkAccessLogsDO::getDelFlag, 0)
                 .orderByDesc(LinkAccessLogsDO::getCreateTime);
         IPage<LinkAccessLogsDO> linkAccessLogsDOIPage = linkAccessLogsMapper.selectPage(shortLinkStatsAccessRecordReqDTO, queryWrapper);
-        IPage<ShortLinkStatsAccessRecordRespDTO> actualResult = linkAccessLogsDOIPage.convert(each -> BeanUtil.toBean(each, ShortLinkStatsAccessRecordRespDTO.class));
-        // 收集本页所有访客
+        // 必须先收集访客再转 DTO：IPage#convert 会就地替换 records，
+        // 之后 getRecords() 里已经是 DTO，再按 LinkAccessLogsDO 取 user 会抛 ClassCastException
         List<String> userAccessLogsList = linkAccessLogsDOIPage.getRecords().stream()
                 .map(LinkAccessLogsDO::getUser)
+                .filter(Objects::nonNull)
+                .distinct()
                 .toList();
-        // 批量查询访客类型
+        IPage<ShortLinkStatsAccessRecordRespDTO> actualResult = linkAccessLogsDOIPage.convert(each -> BeanUtil.toBean(each, ShortLinkStatsAccessRecordRespDTO.class));
         // 时间范围内没有数据直接返回空结果
         if (CollUtil.isEmpty(userAccessLogsList)) {
             return actualResult;   // 本页没数据，不用查新老访客
@@ -478,12 +480,13 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
                 .eq(LinkAccessLogsDO::getDelFlag, 0)
                 .orderByDesc(LinkAccessLogsDO::getCreateTime);
         IPage<LinkAccessLogsDO> linkAccessLogsDOIPage = linkAccessLogsMapper.selectPage(shortLinkGroupStatsAccessRecordReqDTO, queryWrapper);
-        IPage<ShortLinkStatsAccessRecordRespDTO> actualResult = linkAccessLogsDOIPage.convert(each -> BeanUtil.toBean(each, ShortLinkStatsAccessRecordRespDTO.class));
-        // 收集本页所有访客
+        // 同上：先收集访客，再转 DTO，顺序反了会 ClassCastException
         List<String> userAccessLogsList = linkAccessLogsDOIPage.getRecords().stream()
                 .map(LinkAccessLogsDO::getUser)
+                .filter(Objects::nonNull)
+                .distinct()
                 .toList();
-        // 批量查询访客类型
+        IPage<ShortLinkStatsAccessRecordRespDTO> actualResult = linkAccessLogsDOIPage.convert(each -> BeanUtil.toBean(each, ShortLinkStatsAccessRecordRespDTO.class));
         // 时间范围内没有数据直接返回空结果
         if (CollUtil.isEmpty(userAccessLogsList)) {
             return actualResult;   // 本页没数据，不用查新老访客

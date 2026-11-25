@@ -2,7 +2,8 @@ package com.cdy.shortlink.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
-import com.alibaba.fastjson2.JSON;
+import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -24,6 +25,7 @@ import org.redisson.api.RBloomFilter;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -43,6 +45,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
     private final RedissonClient redissonClient;
     private final StringRedisTemplate stringRedisTemplate;
     private final GroupService groupService;
+
+    /**
+     * 登录态有效期（分钟），网关校验通过后同样会续期
+     */
+    @Value("${short-link.login.token-ttl-minutes:30}")
+    private long loginTokenTtlMinutes;
 
     /**
      * 根据用户名查询用户信息
@@ -138,32 +146,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
             throw new ClientException(UserErrorCodeEnum.USER_NULL);
         }
 
+        String loginKey = RedisCacheConstant.LOGIN_USER_KEY + userLoginReqDTO.getUsername();
         // 允许用户在不同端登录，如手机和电脑
-        Map<Object, Object> hasLoginMap = stringRedisTemplate.opsForHash().entries(RedisCacheConstant.LOGIN_USER_KEY + userLoginReqDTO.getUsername());
+        Map<Object, Object> hasLoginMap = stringRedisTemplate.opsForHash().entries(loginKey);
         if (CollUtil.isNotEmpty(hasLoginMap)) {
-            // 返回已登录的 token
+            // 已经有有效登录态：直接复用，同时把过期时间续上
             String token = hasLoginMap.keySet().stream()
                     .findFirst()
                     .map(Object::toString)
                     .orElseThrow(() -> new ClientException("用户登录错误"));
+            renewLoginToken(loginKey);
             return new UserLoginRespDTO(token);
         }
 
         String uuid = UUID.randomUUID().toString();
-
-        /** TODO 优化登录逻辑3
-         * 问题：
-         * 1.存储了完整 UserDO：UserDO 可能包含密码、盐值等敏感字段。一旦 Redis 被攻破，密码会泄露。
-         * 应该只存必要的用户信息（如 id、username、nickname），或者单独存一个脱敏后的 DTO。
-         *
-         * 2.过期时间固定 30 分钟：没有实现滑动续期。用户如果在 30 分钟内一直操作，到了 30 分钟仍然会过期，需要重新登录。
-         * 更好的做法是在 checkLogin 中，如果 token 有效，就刷新过期时间。
-         *
-         * 3.并发问题：两个请求同时登录，都查到 hasLogin 为 false，然后都执行 put，后写入的会覆盖先写入的，导致先登录的 token 失效。
-         * 可以使用 setIfAbsent 或分布式锁来保证原子性
-         **/
-        stringRedisTemplate.opsForHash().put(RedisCacheConstant.LOGIN_USER_KEY + userLoginReqDTO.getUsername(), uuid, JSON.toJSONString(userDO));
-        stringRedisTemplate.expire(RedisCacheConstant.LOGIN_USER_KEY + userLoginReqDTO.getUsername(), 30L, TimeUnit.MINUTES);
+        // 只存网关/前端需要的字段，不要把带密码的 UserDO 整个丢进 Redis
+        JSONObject loginUser = new JSONObject();
+        loginUser.put("id", userDO.getId());
+        loginUser.put("username", userDO.getUsername());
+        // 网关会 URLEncoder.encode(realName)，null 会 NPE，这里兜底成用户名
+        loginUser.put("realName", StrUtil.blankToDefault(userDO.getRealName(), userDO.getUsername()));
+        stringRedisTemplate.opsForHash().put(loginKey, uuid, loginUser.toJSONString());
+        renewLoginToken(loginKey);
 
         return new UserLoginRespDTO(uuid);
     }
@@ -175,23 +179,36 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
      */
     @Override
     public Boolean checkLogin(String username, String token) {
-        /** TODO 滑动续期登录状态检查
-         * 注意：这里没有刷新过期时间，所以登录态是固定的 30 分钟。如果希望滑动续期，应该在这里判断有效后，重新设置 key 的过期时间
-         */
-        return stringRedisTemplate.opsForHash().get(RedisCacheConstant.LOGIN_USER_KEY + username, token) != null;
+        String loginKey = RedisCacheConstant.LOGIN_USER_KEY + username;
+        if (stringRedisTemplate.opsForHash().get(loginKey, token) == null) {
+            return false;
+        }
+        // 滑动续期：只要还在用，登录态就一直有效
+        renewLoginToken(loginKey);
+        return true;
     }
 
     /**
-     * 退出登录
+     * 退出登录（只踢掉当前这个 token，其它端不受影响）
      * @param username 用户名
      * @param token 用户token
      */
     @Override
     public void logout(String username, String token) {
-        if (checkLogin(username, token)) {
-            stringRedisTemplate.delete(RedisCacheConstant.LOGIN_USER_KEY + username);
-            return;
+        String loginKey = RedisCacheConstant.LOGIN_USER_KEY + username;
+        if (stringRedisTemplate.opsForHash().get(loginKey, token) == null) {
+            throw new ClientException(UserErrorCodeEnum.USER_NOT_LOGIN);
         }
-        throw new ClientException(UserErrorCodeEnum.USER_NOT_LOGIN);
+        stringRedisTemplate.opsForHash().delete(loginKey, token);
+        if (Boolean.FALSE.equals(stringRedisTemplate.hasKey(loginKey))) {
+            stringRedisTemplate.delete(loginKey);
+        }
+    }
+
+    /**
+     * 续期登录态
+     */
+    private void renewLoginToken(String loginKey) {
+        stringRedisTemplate.expire(loginKey, loginTokenTtlMinutes, TimeUnit.MINUTES);
     }
 }

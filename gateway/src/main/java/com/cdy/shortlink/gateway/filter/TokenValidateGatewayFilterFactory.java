@@ -6,6 +6,7 @@ import com.cdy.shortlink.gateway.config.Config;
 import com.cdy.shortlink.gateway.dto.GatewayErrorResult;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * SpringCloud Gateway Token 拦截器
@@ -28,6 +30,12 @@ import java.util.Objects;
 public class TokenValidateGatewayFilterFactory extends AbstractGatewayFilterFactory<Config> {
 
     private final StringRedisTemplate stringRedisTemplate;
+
+    /**
+     * 登录态有效期（分钟），必须与 admin 端配置一致
+     */
+    @Value("${short-link.login.token-ttl-minutes:30}")
+    private long loginTokenTtlMinutes;
 
     public TokenValidateGatewayFilterFactory(StringRedisTemplate stringRedisTemplate) {
         super(Config.class);
@@ -46,9 +54,12 @@ public class TokenValidateGatewayFilterFactory extends AbstractGatewayFilterFact
                 Object userInfo;
                 if (StringUtils.hasText(username) && StringUtils.hasText(token) && (userInfo = stringRedisTemplate.opsForHash().get("short-link:login:" + username, token)) != null) {
                     JSONObject userInfoJsonObject = JSON.parseObject(userInfo.toString());
+                    // 滑动续期：只要用户还在访问，登录态就不会过期
+                    stringRedisTemplate.expire("short-link:login:" + username, loginTokenTtlMinutes, TimeUnit.MINUTES);
                     ServerHttpRequest.Builder builder = exchange.getRequest().mutate().headers(httpHeaders -> {
                         httpHeaders.set("userId", userInfoJsonObject.getString("id"));
-                        httpHeaders.set("realName", URLEncoder.encode(userInfoJsonObject.getString("realName"), StandardCharsets.UTF_8));
+                        String realName = userInfoJsonObject.getString("realName");
+                        httpHeaders.set("realName", URLEncoder.encode(realName == null ? "" : realName, StandardCharsets.UTF_8));
                     });
                     return chain.filter(exchange.mutate().request(builder.build()).build());
                 }
