@@ -1,5 +1,6 @@
 package com.cdy.shortlink.project.common.config;
 
+import com.cdy.shortlink.project.mq.StatsStreamConsumerName;
 import com.cdy.shortlink.project.mq.consumer.ShortLinkStatsSaveConsumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,7 @@ public class RedisStreamConfiguration {
 
     private final RedisConnectionFactory redisConnectionFactory;
     private final ShortLinkStatsSaveConsumer shortLinkStatsSaveConsumer;
+    private final StatsStreamConsumerName statsStreamConsumerName;
 
     @Value("${spring.data.redis.channel-topic.short-link-stats}")
     private String topic;
@@ -72,8 +74,11 @@ public class RedisStreamConfiguration {
                         .build();
         StreamMessageListenerContainer<String, MapRecord<String, String, String>> streamMessageListenerContainer =
                 StreamMessageListenerContainer.create(redisConnectionFactory, options);
-        streamMessageListenerContainer.receiveAutoAck(Consumer.from(group, "stats-consumer"),
-                StreamOffset.create(topic, ReadOffset.lastConsumed()), shortLinkStatsSaveConsumer);
+        // 手动 ACK：处理成功后由消费者显式 XACK；失败不 ACK，消息留在 PEL 由恢复任务重试
+        streamMessageListenerContainer.receive(
+                Consumer.from(group, statsStreamConsumerName.getName()),
+                StreamOffset.create(topic, ReadOffset.lastConsumed()),
+                shortLinkStatsSaveConsumer);
         return streamMessageListenerContainer;
     }
 

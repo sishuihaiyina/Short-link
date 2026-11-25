@@ -3,9 +3,6 @@ package com.cdy.shortlink.project.service.Impl;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.Week;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.http.HttpUtil;
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.cdy.shortlink.project.dao.entity.LinkAccessLogsDO;
 import com.cdy.shortlink.project.dao.entity.LinkAccessStatsDO;
@@ -29,21 +26,19 @@ import com.cdy.shortlink.project.dao.mapper.ShortLinkMapper;
 import com.cdy.shortlink.project.dto.biz.ShortLinkStatsRecordDTO;
 import com.cdy.shortlink.project.mq.producer.DelayShortLinkStatsProducer;
 import com.cdy.shortlink.project.service.ShortLinkStatsSaveService;
+import com.cdy.shortlink.project.toolkit.IpLocale;
+import com.cdy.shortlink.project.toolkit.IpLocaleResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RReadWriteLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 
 import static com.cdy.shortlink.project.common.constant.RedisKeyConstant.LOCK_GID_UPDATE_KEY;
-import static com.cdy.shortlink.project.common.constant.ShortLinkConstant.AMAP_REMOTE_URL;
 
 /**
  * 短链接监控数据落库服务实现
@@ -65,9 +60,7 @@ public class ShortLinkStatsSaveServiceImpl implements ShortLinkStatsSaveService 
     private final LinkNetworkStatsMapper linkNetworkStatsMapper;
     private final LinkStatsTodayMapper linkStatsTodayMapper;
     private final DelayShortLinkStatsProducer delayShortLinkStatsProducer;
-
-    @Value("${short-link.stats.locale.amap-key}")
-    private String statsLocaleAmapKey;
+    private final IpLocaleResolver ipLocaleResolver;
 
     /**
      * 保存一条访问统计
@@ -105,31 +98,8 @@ public class ShortLinkStatsSaveServiceImpl implements ShortLinkStatsSaveService 
                 gid = shortLinkGotoDO.getGid();
             }
 
-            // 先查地区：访问日志需要把地区一起写进去；高德失败时用"未知"兜底
-            String actualProvince = "未知";
-            String actualCity = "未知";
-            String actualAdcode = "未知";
-            boolean localeResolved = false;
-            try {
-                Map<String, Object> localeParamMap = new HashMap<>();
-                localeParamMap.put("key", statsLocaleAmapKey);
-                localeParamMap.put("ip", statsRecord.getRemoteAddr());
-                String localeResultStr = HttpUtil.get(AMAP_REMOTE_URL, localeParamMap);
-                JSONObject localeResultObj = JSON.parseObject(localeResultStr);
-                String infoCode = localeResultObj.getString("infocode");
-                if (StrUtil.isNotBlank(infoCode) && StrUtil.equals(infoCode, "10000")) {
-                    localeResolved = true;
-                    String province = localeResultObj.getString("province");
-                    boolean unknownFlag = StrUtil.equals(province, "[]");
-                    if (!unknownFlag) {
-                        actualProvince = province;
-                        actualCity = localeResultObj.getString("city");
-                        actualAdcode = localeResultObj.getString("adcode");
-                    }
-                }
-            } catch (Exception ex) {
-                log.warn("高德 IP 定位失败，ip：{}", statsRecord.getRemoteAddr(), ex);
-            }
+            // 解析访问地区：内网 IP 直接返回未知，公网 IP 先查 Redis 缓存，未命中才请求高德
+            IpLocale ipLocale = ipLocaleResolver.resolve(statsRecord.getRemoteAddr());
 
             // ===== 幂等闸门：先写访问日志 =====
             // event_id 唯一索引冲突时 insertIgnore 返回 0，说明这条消息已经处理过
@@ -144,7 +114,7 @@ public class ShortLinkStatsSaveServiceImpl implements ShortLinkStatsSaveService 
                     .os(statsRecord.getOs())
                     .network(statsRecord.getNetwork())
                     .device(statsRecord.getDevice())
-                    .locale(StrUtil.join("-", "中国", actualProvince, actualCity))
+                    .locale(ipLocale.fullLocale())
                     .gid(gid)
                     .fullShortUrl(fullShortUrl)
                     .build();
@@ -169,11 +139,12 @@ public class ShortLinkStatsSaveServiceImpl implements ShortLinkStatsSaveService 
                     .build();
             linkAccessStatsMapper.shortLinkStats(linkAccessStatsDO);
 
-            if (localeResolved) {
+            // 只有真正解析出地区的访问才写地区统计；内网/未知访问仍保留在访问日志里
+            if (ipLocale.resolved()) {
                 linkLocaleStatsMapper.shortLinkLocaleStats(LinkLocaleStatsDO.builder()
-                        .province(actualProvince)
-                        .city(actualCity)
-                        .adcode(actualAdcode)
+                        .province(ipLocale.province())
+                        .city(ipLocale.city())
+                        .adcode(ipLocale.adcode())
                         .cnt(1)
                         .fullShortUrl(fullShortUrl)
                         .country("中国")

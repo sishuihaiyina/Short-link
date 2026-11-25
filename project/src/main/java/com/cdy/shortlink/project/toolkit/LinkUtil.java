@@ -2,6 +2,7 @@ package com.cdy.shortlink.project.toolkit;
 
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.util.StrUtil;
 import com.cdy.shortlink.project.common.constant.ShortLinkConstant;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -12,6 +13,11 @@ import java.util.Optional;
  * 链接工具类
  */
 public class LinkUtil {
+
+    /**
+     * 代理层透传客户端 IP 的请求头（X-Forwarded-For 单独处理，它是逗号分隔的链路）
+     */
+    private static final String[] PROXY_IP_HEADERS = {"X-Real-IP", "Proxy-Client-IP", "WL-Proxy-Client-IP"};
 
     /**
      * 获取链接缓存有效时间
@@ -27,29 +33,186 @@ public class LinkUtil {
     }
 
     /**
-     * 获取请求的 IP 地址
-     * @param request
-     * @return
+     * 获取请求的客户端 IP
+     * <p>
+     * 代理链路里 X-Forwarded-For 的格式是 {@code 客户端IP, 一级代理IP, 二级代理IP}，
+     * 直接把这整串拿去查归属地必然失败，所以这里按逗号拆开逐个校验，
+     * 取第一个“合法且不是内网”的地址作为客户端 IP；全链路都是内网时退回第一个合法地址，
+     * 让上层按内网处理，而不是拿一串拼接值去请求第三方接口。
+     *
+     * @param request 请求
+     * @return 客户端 IP；解析不出来时返回空串
      */
     public static String getIp(HttpServletRequest request) {
-        String ipAddress = request.getHeader("X-Forwarded-For");
+        String clientIp = findClientIp(request.getHeader("X-Forwarded-For"));
+        if (StrUtil.isNotBlank(clientIp)) {
+            return clientIp;
+        }
+        for (String header : PROXY_IP_HEADERS) {
+            String candidate = normalizeIp(request.getHeader(header));
+            if (isValidIp(candidate)) {
+                return candidate;
+            }
+        }
+        return normalizeIp(request.getRemoteAddr());
+    }
 
-        if (ipAddress == null || ipAddress.length() == 0 || "unknown".equalsIgnoreCase(ipAddress)) {
-            ipAddress = request.getHeader("Proxy-Client-IP");
+    /**
+     * 从 X-Forwarded-For 中挑出客户端 IP
+     *
+     * @param forwardedFor X-Forwarded-For 原始值，可能为 {@code 1.2.3.4, 10.0.0.1}
+     * @return 第一个合法的公网地址；没有公网地址时返回第一个合法地址；都不合法返回 null
+     */
+    private static String findClientIp(String forwardedFor) {
+        if (StrUtil.isBlank(forwardedFor)) {
+            return null;
         }
-        if (ipAddress == null || ipAddress.length() == 0 || "unknown".equalsIgnoreCase(ipAddress)) {
-            ipAddress = request.getHeader("WL-Proxy-Client-IP");
+        String firstValidIp = null;
+        for (String segment : StrUtil.split(forwardedFor, ',')) {
+            String candidate = normalizeIp(segment);
+            if (!isValidIp(candidate)) {
+                continue;
+            }
+            if (firstValidIp == null) {
+                firstValidIp = candidate;
+            }
+            if (!isInternalIp(candidate)) {
+                return candidate;
+            }
         }
-        if (ipAddress == null || ipAddress.length() == 0 || "unknown".equalsIgnoreCase(ipAddress)) {
-            ipAddress = request.getRemoteAddr();
-        }
+        return firstValidIp;
+    }
 
-        return ipAddress;
+    /**
+     * 规整 IP 文本：去空白、去引号、去端口、去掉 unknown 这类占位值
+     *
+     * @param raw 原始值
+     * @return 规整后的 IP 文本，无法规整时返回空串
+     */
+    public static String normalizeIp(String raw) {
+        if (StrUtil.isBlank(raw)) {
+            return "";
+        }
+        String ip = raw.trim();
+        if (ip.length() > 1 && ip.startsWith("\"") && ip.endsWith("\"")) {
+            ip = ip.substring(1, ip.length() - 1).trim();
+        }
+        if (StrUtil.isBlank(ip) || "unknown".equalsIgnoreCase(ip)) {
+            return "";
+        }
+        // IPv6 带端口：[::1]:1234
+        if (ip.startsWith("[")) {
+            int end = ip.indexOf(']');
+            return end > 0 ? ip.substring(1, end) : "";
+        }
+        // IPv4 带端口：10.0.0.1:1234；IPv6 本身含冒号，不能按冒号切
+        int colon = ip.indexOf(':');
+        if (colon > 0 && ip.indexOf(':', colon + 1) < 0 && isValidIpv4(ip.substring(0, colon))) {
+            return ip.substring(0, colon);
+        }
+        return ip;
+    }
+
+    /**
+     * 是否为合法的 IPv4 / IPv6 文本
+     *
+     * @param ip IP 文本
+     * @return 是否合法
+     */
+    public static boolean isValidIp(String ip) {
+        return isValidIpv4(ip) || isValidIpv6(ip);
+    }
+
+    /**
+     * 是否为内网 / 回环 / 链路本地地址
+     * <p>
+     * 这类地址查不到归属地，调用第三方接口纯属浪费配额，应该在发请求之前就短路掉。
+     *
+     * @param ip IP 文本
+     * @return 是否为内网地址
+     */
+    public static boolean isInternalIp(String ip) {
+        if (StrUtil.isBlank(ip)) {
+            return true;
+        }
+        if (isValidIpv6(ip)) {
+            String lower = ip.toLowerCase();
+            return "::1".equals(lower)
+                    || "::".equals(lower)
+                    || lower.startsWith("fe80")
+                    || lower.startsWith("fc")
+                    || lower.startsWith("fd");
+        }
+        if (!isValidIpv4(ip)) {
+            return true;
+        }
+        if ("0.0.0.0".equals(ip)
+                || ip.startsWith("10.")
+                || ip.startsWith("127.")
+                || ip.startsWith("192.168.")
+                || ip.startsWith("169.254.")) {
+            return true;
+        }
+        // 172.16.0.0 ~ 172.31.255.255
+        String[] parts = ip.split("\\.");
+        int second = Integer.parseInt(parts[1]);
+        return "172".equals(parts[0]) && second >= 16 && second <= 31;
+    }
+
+    /**
+     * 校验 IPv4：四段，每段 0~255
+     */
+    private static boolean isValidIpv4(String ip) {
+        if (StrUtil.isBlank(ip)) {
+            return false;
+        }
+        String[] parts = ip.split("\\.", -1);
+        if (parts.length != 4) {
+            return false;
+        }
+        for (String part : parts) {
+            if (part.isEmpty() || part.length() > 3) {
+                return false;
+            }
+            for (int i = 0; i < part.length(); i++) {
+                if (!Character.isDigit(part.charAt(i))) {
+                    return false;
+                }
+            }
+            if (Integer.parseInt(part) > 255) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 校验 IPv6：只做字面形态校验（含冒号、由十六进制字符和点号组成），够用来区分 IP 和垃圾值
+     */
+    private static boolean isValidIpv6(String ip) {
+        if (StrUtil.isBlank(ip) || ip.indexOf(':') < 0) {
+            return false;
+        }
+        int colonCount = 0;
+        for (int i = 0; i < ip.length(); i++) {
+            char c = ip.charAt(i);
+            if (c == ':') {
+                colonCount++;
+                continue;
+            }
+            boolean hexChar = (c >= '0' && c <= '9')
+                    || (c >= 'a' && c <= 'f')
+                    || (c >= 'A' && c <= 'F')
+                    || c == '.';
+            if (!hexChar) {
+                return false;
+            }
+        }
+        return colonCount >= 2;
     }
 
     /**
      * 获取用户访问操作系统
-     *
      * @param request 请求
      * @return 访问操作系统
      */
@@ -74,7 +237,6 @@ public class LinkUtil {
 
     /**
      * 获取用户访问浏览器
-     *
      * @param request 请求
      * @return 访问浏览器
      */
@@ -99,7 +261,6 @@ public class LinkUtil {
 
     /**
      * 获取用户访问设备
-     *
      * @param request 请求
      * @return 访问设备
      */
@@ -113,7 +274,6 @@ public class LinkUtil {
 
     /**
      * 获取用户访问网络
-     *
      * @param request 请求
      * @return 访问设备
      */

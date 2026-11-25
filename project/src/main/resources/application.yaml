@@ -17,6 +17,8 @@ spring:
       channel-topic:
         short-link-stats: 'short_link:stats-stream'
         short-link-stats-group: 'short_link:stats-stream:only-group'
+        # 超过最大重试次数的统计消息转入死信队列
+        short-link-stats-dlq: 'short_link:stats-stream:dlq'
   mvc:
     view:
       prefix: /templates/
@@ -30,6 +32,16 @@ short-link:
   domain:
     default: 127.0.0.1:8001
   stats:
+    # pending 消息恢复任务参数
+    recovery:
+      # pending 至少空闲多久才重新投递
+      min-idle-ms: 60000
+      # 单条消息最大重试次数，超过后转入死信队列
+      max-retries: 5
+      # 每轮扫描的 pending 数量
+      batch-size: 100
+      # 恢复任务执行间隔
+      fixed-delay-ms: 30000
     locale:
       amap-key: 58a604e754fddfa950323d69c7773c10
 

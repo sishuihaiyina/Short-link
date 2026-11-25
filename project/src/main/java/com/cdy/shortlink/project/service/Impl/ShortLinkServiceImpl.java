@@ -439,9 +439,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         String originalLink = stringRedisTemplate.opsForValue().get(String.format(RedisKeyConstant.GOTO_SHORT_LINK_KEY, fullShortUrl));
         // 缓存命中，直接跳转原始链接
         if (StrUtil.isNotBlank(originalLink)) {
-            // 缓存命中：先构造统计记录（含 UV Cookie 处理），gid 未知传 null，由统计方法内部反查
-            ShortLinkStatsRecordDTO statsRecord = buildLinkStatsRecordAndSetUser(fullShortUrl, request, response);
-            shortLinkStats(fullShortUrl, null, statsRecord);
+            // 缓存命中：统计失败不能影响跳转，gid 未知传 null，由统计方法内部反查
+            recordStatsSafely(fullShortUrl, null, request, response);
             ((HttpServletResponse) response).sendRedirect(originalLink);
             return;
         }
@@ -510,9 +509,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     shortLinkDO.getOriginUrl(),
                     LinkUtil.getLinkCacheValidDate(shortLinkDO.getValidDate()),
                     TimeUnit.MILLISECONDS);
-            // 缓存未命中：gid 已知，构造统计记录后落库
-            ShortLinkStatsRecordDTO statsRecord = buildLinkStatsRecordAndSetUser(fullShortUrl, request, response);
-            shortLinkStats(fullShortUrl, shortLinkDO.getGid(), statsRecord);
+            // 缓存未命中：gid 已知，统计失败不能影响跳转
+            recordStatsSafely(fullShortUrl, shortLinkDO.getGid(), request, response);
             // 跳转短链接目标
             ((HttpServletResponse) response).sendRedirect(shortLinkDO.getOriginUrl());
         } finally {
@@ -623,7 +621,24 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         producerMap.put("fullShortUrl", StrUtil.nullToEmpty(fullShortUrl));
         producerMap.put("gid", StrUtil.nullToEmpty(gid));
         producerMap.put("statsRecord", JSON.toJSONString(statsRecord));
-        shortLinkStatsSaveProducer.send(producerMap);
+        try {
+            shortLinkStatsSaveProducer.send(producerMap);
+        } catch (Exception ex) {
+            // 统计属于旁路逻辑，发送失败只记录日志，不能影响短链跳转
+            log.error("短链接统计消息发送失败，fullShortUrl：{}", fullShortUrl, ex);
+        }
+    }
+
+    /**
+     * 构造并发送统计记录，任何异常都不外抛，保证短链跳转不受统计链路影响
+     */
+    private void recordStatsSafely(String fullShortUrl, String gid, ServletRequest request, ServletResponse response) {
+        try {
+            ShortLinkStatsRecordDTO statsRecord = buildLinkStatsRecordAndSetUser(fullShortUrl, request, response);
+            shortLinkStats(fullShortUrl, gid, statsRecord);
+        } catch (Exception ex) {
+            log.error("短链接统计记录失败，不影响跳转，fullShortUrl：{}", fullShortUrl, ex);
+        }
     }
 
 
