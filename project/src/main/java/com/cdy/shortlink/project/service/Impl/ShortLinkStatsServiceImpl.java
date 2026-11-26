@@ -47,9 +47,6 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
         // 基础访问数据
         LinkAccessStatsDO pvUvUipStatsByShortLink = linkAccessLogsMapper.findPvUvUipStatsByShortLink(requestParam);
         // 基础访问详情
-        int pv = listStatsByShortLink.stream().mapToInt(LinkAccessStatsDO::getPv).sum();
-        int uv = listStatsByShortLink.stream().mapToInt(LinkAccessStatsDO::getUv).sum();
-        int uip = listStatsByShortLink.stream().mapToInt(LinkAccessStatsDO::getUip).sum();
         List<ShortLinkStatsAccessDailyRespDTO> daily = new ArrayList<>();
         List<String> rangeDates = DateUtil.rangeToList(DateUtil.parse(requestParam.getStartDate()), DateUtil.parse(requestParam.getEndDate()), DateField.DAY_OF_MONTH).stream()
                 .map(DateUtil::formatDate)
@@ -183,9 +180,10 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
                         .orElse("0")
         );
         int uvSum = oldUserCnt + newUserCnt;
-        double oldRatio = (double) oldUserCnt / uvSum;
+        // 区间内没有访客时避免 0/0 产生 NaN
+        double oldRatio = uvSum == 0 ? 0D : (double) oldUserCnt / uvSum;
         double actualOldRatio = Math.round(oldRatio * 100.0) / 100.0;
-        double newRatio = (double) newUserCnt / uvSum;
+        double newRatio = uvSum == 0 ? 0D : (double) newUserCnt / uvSum;
         double actualNewRatio = Math.round(newRatio * 100.0) / 100.0;
         ShortLinkStatsUvRespDTO newUvRespDTO = ShortLinkStatsUvRespDTO.builder()
                 .uvType("newUser")

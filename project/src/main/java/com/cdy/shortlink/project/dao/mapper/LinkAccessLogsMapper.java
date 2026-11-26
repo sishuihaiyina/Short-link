@@ -60,12 +60,12 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
      * 根据短链接获取指定日期内新旧访客数据
      */
     @Select("SELECT " +
-            "    SUM(old_user) AS oldUserCnt, " +
-            "    SUM(new_user) AS newUserCnt " +
+            "    SUM(CASE WHEN first_time < #{param.startDate} THEN 1 ELSE 0 END) AS oldUserCnt, " +
+            "    SUM(CASE WHEN first_time >= #{param.startDate} THEN 1 ELSE 0 END) AS newUserCnt " +
             "FROM ( " +
             "    SELECT " +
-            "        CASE WHEN COUNT(DISTINCT DATE(create_time)) > 1 THEN 1 ELSE 0 END AS old_user, " +
-            "        CASE WHEN COUNT(DISTINCT DATE(create_time)) = 1 AND MAX(create_time) >= CONCAT(#{param.startDate},' 00:00:00') AND MAX(create_time) <= CONCAT(#{param.endDate},' 23:59:59') THEN 1 ELSE 0 END AS new_user " +
+            "        user, " +
+            "        MIN(create_time) AS first_time " +
             "    FROM " +
             "        t_link_access_logs " +
             "    WHERE " +
@@ -73,6 +73,9 @@ public interface LinkAccessLogsMapper extends BaseMapper<LinkAccessLogsDO> {
             "        AND gid = #{param.gid} " +
             "    GROUP BY " +
             "        user " +
+            "    HAVING COUNT(CASE WHEN create_time >= #{param.startDate} " +
+            "                      AND create_time < DATE_ADD(DATE(#{param.endDate}), INTERVAL 1 DAY) " +
+            "                      THEN 1 END) > 0 " +
             ") AS user_counts;")
     HashMap<String, Object> findUvTypeCntByShortLink(@Param("param") ShortLinkStatsReqDTO requestParam);
 
